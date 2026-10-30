@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme(
                 primary = Blue, secondary = Cyan, background = Night, surface = Panel,
                 onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { MuPlayerApp() }
+            )) { NuvoraApp() }
         }
     }
 }
@@ -53,7 +53,7 @@ private val tracks = listOf(
 )
 
 @Composable
-private fun MuPlayerApp() {
+private fun NuvoraApp() {
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var active by remember { mutableIntStateOf(0) }
@@ -103,7 +103,7 @@ private fun MuPlayerApp() {
             title = { Text("Choose music source", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Select a provider for MuPlayer. Connections are not active yet.", color = Muted, fontSize = 12.sp)
+                    Text("Select a provider for Nuvora. Connections are not active yet.", color = Muted, fontSize = 12.sp)
                     listOf("YouTube", "JioSaavn", "Spotify", "SoundCloud", "More sources").forEach { source ->
                         Surface(
                             color = if (selectedSource == source) Color(0xFF1C3760) else Color.Transparent,
@@ -137,7 +137,7 @@ private fun HomeScreen(modifier: Modifier, query: String, onQuery: (String) -> U
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("MUPLAYER", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp)
+                    Text("NUVORA", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp)
                     Text("Find your frequency.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
                     Text("A world of music, one tap away.", color = Muted, fontSize = 13.sp)
                 }
