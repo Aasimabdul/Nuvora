@@ -119,7 +119,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius") ?: "Audius") }
     var showProviders by remember { mutableStateOf(false) }
     var showThemes by remember { mutableStateOf(false) }
-    val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud")
+    val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud", "Bandcamp")
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
@@ -243,7 +243,62 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     ) { insets ->
         when (tab) {
             0 -> Column(Modifier.fillMaxSize().padding(insets)) {
-                Header()
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 18.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("NUVORA", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Text("Find your frequency.", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Box {
+                        OutlinedButton(
+                            onClick = { showProviders = true },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Rounded.LibraryMusic, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(selectedProvider, fontSize = 12.sp, maxLines = 1)
+                            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+                        }
+                        DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
+                            providers.forEach { provider ->
+                                DropdownMenuItem(
+                                    text = { Text(provider + if (provider == "Audius") " · In-app" else if (provider == "YouTube Music") " · Embedded" else " · Official app") },
+                                    leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
+                                    onClick = {
+                                        selectedProvider = provider
+                                        prefs.edit().putString("music_provider", provider).apply()
+                                        showProviders = false
+                                        error = null
+                                        tracks = emptyList()
+                                        if (provider == "Audius") {
+                                            search(query.ifBlank { "electronic chill" })
+                                        } else if (provider == "YouTube Music") {
+                                            tab = 1
+                                        } else {
+                                            val encoded = Uri.encode(query.ifBlank { "music" })
+                                            val url = when (provider) {
+                                                "JioSaavn" -> "https://www.jiosaavn.com/search/$encoded"
+                                                "Spotify" -> "https://open.spotify.com/search/$encoded"
+                                                "SoundCloud" -> "https://soundcloud.com/search?q=$encoded"
+                                                "Bandcamp" -> "https://bandcamp.com/search?q=$encoded"
+                                                else -> null
+                                            }
+                                            if (url != null) try {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                            } catch (_: Exception) {
+                                                Toast.makeText(context, "Could not open $provider", Toast.LENGTH_SHORT).show()
+                                            }
+                                            error = "$provider opens through its official app or website in this version."
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                Text("Discover independent music.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp))
                 SearchBar(query, { query = it }, { tab = 1; search(query) }, { search("electronic chill") })
                 StatusMessages(loading, error)
                 LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -457,9 +512,33 @@ private fun YouTubeEmbedScreen(sharedYouTubeLink: String? = null) {
                             settings.mediaPlaybackRequiresUserGesture = true
                             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                             webViewClient = WebViewClient()
-                            loadUrl(
-                                "https://www.youtube.com/embed/$id?playsinline=1",
-                                mapOf("Referer" to "https://github.com/Aasimabdul/Nuvora/")
+                            val html = """
+                                <!doctype html>
+                                <html>
+                                  <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+                                    <style>
+                                      html, body { margin:0; padding:0; width:100%; height:100%; background:#080D1A; overflow:hidden; }
+                                      iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+                                    </style>
+                                  </head>
+                                  <body>
+                                    <iframe
+                                      src="https://www.youtube.com/embed/$id?playsinline=1&autoplay=0&rel=0"
+                                      title="YouTube video player"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                      referrerpolicy="strict-origin-when-cross-origin"
+                                      allowfullscreen>
+                                    </iframe>
+                                  </body>
+                                </html>
+                            """.trimIndent()
+                            loadDataWithBaseURL(
+                                "https://www.youtube.com/",
+                                html,
+                                "text/html",
+                                "UTF-8",
+                                null
                             )
                         }
                     }
