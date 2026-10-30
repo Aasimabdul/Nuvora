@@ -28,10 +28,11 @@ object AudiusRepository {
     private const val BASE_URL = "https://api.audius.co/v1"
     private const val APP_NAME = "Nuvora"
 
-    suspend fun searchTracks(query: String, limit: Int = 25): List<MusicTrack> =
+    suspend fun searchTracks(query: String, limit: Int = 25, baseUrl: String = BASE_URL): List<MusicTrack> =
         withContext(Dispatchers.IO) {
             val encoded = URLEncoder.encode(query.ifBlank { "electronic chill" }, "UTF-8")
-            val url = "$BASE_URL/tracks/search?query=$encoded&limit=$limit&app_name=$APP_NAME"
+            val normalizedBase = baseUrl.trim().trimEnd('/')
+            val url = "$normalizedBase/tracks/search?query=$encoded&limit=$limit&app_name=$APP_NAME"
             val json = getJson(url)
             val data = json.optJSONArray("data") ?: return@withContext emptyList()
             buildList {
@@ -53,7 +54,7 @@ object AudiusRepository {
                             artworkUrl = artworkUrl,
                             durationSeconds = duration,
                             permalink = permalink,
-                            streamUrl = "$BASE_URL/tracks/$id/stream?app_name=$APP_NAME"
+                            streamUrl = "$normalizedBase/tracks/$id/stream?app_name=$APP_NAME"
                         )
                     )
                 }
