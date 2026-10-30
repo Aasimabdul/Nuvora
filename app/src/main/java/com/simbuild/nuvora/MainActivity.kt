@@ -2,6 +2,7 @@ package com.simbuild.nuvora
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -103,7 +104,10 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
     var editingSource by remember { mutableStateOf(sourceUrl) }
+    var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius") ?: "Audius") }
+    var showProviders by remember { mutableStateOf(false) }
     var showThemes by remember { mutableStateOf(false) }
+    val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud")
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
@@ -116,6 +120,24 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val scope = rememberCoroutineScope()
 
     fun search(term: String) {
+        if (selectedProvider != "Audius") {
+            val encoded = Uri.encode(term.ifBlank { "music" })
+            val targetUrl = when (selectedProvider) {
+                "YouTube Music" -> "https://music.youtube.com/search?q=$encoded"
+                "JioSaavn" -> "https://www.jiosaavn.com/search/$encoded"
+                "Spotify" -> "https://open.spotify.com/search/$encoded"
+                "SoundCloud" -> "https://soundcloud.com/search?q=$encoded"
+                else -> null
+            }
+            if (targetUrl != null) {
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Could not open $selectedProvider", Toast.LENGTH_SHORT).show()
+                }
+            }
+            return
+        }
         loading = true
         error = null
         scope.launch {
@@ -251,7 +273,32 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
                 HorizontalDivider()
                 Text("Music source", color = Muted, fontSize = 13.sp)
-                Text("Use an Audius-compatible API endpoint. Default source: Audius.", fontSize = 13.sp, color = Muted)
+                Box {
+                    OutlinedButton(onClick = { showProviders = true }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
+                        Text("  Source: $selectedProvider", modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+                    }
+                    DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
+                        providers.forEach { provider ->
+                            DropdownMenuItem(
+                                text = { Text(provider + if (provider == "Audius") " · In-app playback" else " · Open official service") },
+                                leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
+                                onClick = {
+                                    selectedProvider = provider
+                                    prefs.edit().putString("music_provider", provider).apply()
+                                    showProviders = false
+                                    Toast.makeText(context, if (provider == "Audius") "Audius in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
+                }
+                Text(
+                    if (selectedProvider == "Audius") "Audius tracks play inside Nuvora. Other services open their official app or website when you search." else "Searches open $selectedProvider in its official app when supported by Android, otherwise in your browser.",
+                    fontSize = 13.sp, color = Muted
+                )
+                if (selectedProvider == "Audius") {
                 OutlinedTextField(
                     value = editingSource,
                     onValueChange = { editingSource = it },
@@ -273,6 +320,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Icon(Icons.Rounded.Save, contentDescription = null); Text("  Save source") }
+                }
                 HorizontalDivider()
                 Text("Downloads", color = Muted, fontSize = 13.sp)
                 Text("Tap the download icon beside a track. Files are saved in Music/Nuvora and the Android download notification shows progress.", fontSize = 13.sp)
