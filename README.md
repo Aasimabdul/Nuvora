@@ -19,3 +19,6 @@ The provider is intentionally undecided. Integration will be based on the owner'
 
 ## Repository
 The previous MuPlayer repository remains separate and unchanged by this new implementation.
+
+## Source switcher
+The Home header now includes a **Source** button with a picker for YouTube, JioSaavn, Spotify, SoundCloud and a future-sources option. At this stage it changes the selected UI source only; it does not connect to those services or enable live playback. Provider availability and permissions must be verified before implementing each integration.
