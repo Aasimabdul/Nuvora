@@ -85,3 +85,10 @@ Do not implement unofficial audio extraction or terms-bypassing playback. If You
 - Provider rules and attribution are respected.
 - No secrets are committed to source control.
 - CI builds the APK before a release is claimed.
+
+## Source switcher UX
+The Home header includes a visible **Source** control. Its picker currently lists YouTube, JioSaavn, Spotify, SoundCloud and a placeholder for additional sources. This is a UI selection prototype only; it does not mean provider APIs or streaming have been connected.
+
+- Keep the active source visible and make switching available without leaving the Home screen.
+- Provider capabilities must remain distinct. YouTube API policies prohibit extracting audio or enabling background playback of YouTube player content; implement only a compliant player/official supported route. See https://developers.google.com/youtube/terms/developer-policies-guide.
+- For JioSaavn and other providers, verify authorized API/playback access and terms before promising in-app streaming.
