@@ -48,3 +48,9 @@ The APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub Action
 ## Testing note
 
 This is an early release. Verify search, playback, theme persistence, and downloads on a real Android device before relying on it. YouTube embedded playback requires network access and may be unavailable for videos whose owners disable embedding. Provider availability and playback can vary by track and network.
+
+
+## v0.3.4
+- Added a music-source switcher to the Home screen header.
+- Added Bandcamp as an official external search handoff.
+- Improved the YouTube embedded-player HTML and referrer handling. Playback still depends on YouTube allowing the selected video to be embedded.
