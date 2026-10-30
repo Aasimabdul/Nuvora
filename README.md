@@ -10,6 +10,7 @@ Nuvora is an Android music discovery and streaming app built with Kotlin, Jetpac
 - JioSaavn, Spotify, and SoundCloud searches hand off to the official app or website.
 - Stream tracks using Media3 ExoPlayer.
 - Save favourites during the current app session.
+- Minimal floating bottom navigation with a compact now-playing bar and seek progress.
 - Choose from Neon Blue, AMOLED Black, Purple Night, Forest, and Light themes.
 - Configure an Audius-compatible HTTPS API base URL in Settings.
 - Start a track download from the download icon; Android Download Manager shows progress and saves files under Music/Nuvora.
@@ -50,7 +51,8 @@ The APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub Action
 This is an early release. Verify search, playback, theme persistence, and downloads on a real Android device before relying on it. YouTube embedded playback requires network access and may be unavailable for videos whose owners disable embedding. Provider availability and playback can vary by track and network.
 
 
-## v0.3.4
-- Added a music-source switcher to the Home screen header.
-- Added Bandcamp as an official external search handoff.
-- Improved the YouTube embedded-player HTML and referrer handling. Playback still depends on YouTube allowing the selected video to be embedded.
+## v0.3.5
+- Redesigned the bottom navigation as a floating, rounded minimal bar.
+- Added a compact floating now-playing bar with seek progress and playback controls.
+- Investigated official YouTube playback options. The YouTube API policies prohibit audio-only extraction and background playback through the API, so this release does not claim native/background YouTube Music audio playback.
+- YouTube's official embedded player remains limited to permitted in-app video playback; it does not satisfy a native audio-only player requirement. See the [YouTube developer policies](https://developers.google.com/youtube/terms/developer-policies-guide) and [embedded-player requirements](https://support.google.com/youtube/answer/171780?hl=en).
