@@ -78,9 +78,11 @@ private fun downloadTrack(context: Context, track: MusicTrack) {
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
+    private var sharedYouTubeLink by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sharedYouTubeLink = youtubeLinkFromIntent(intent)
         player = ExoPlayer.Builder(this).build()
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
@@ -92,8 +94,14 @@ class MainActivity : ComponentActivity() {
             ) else darkColorScheme(
                 primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
                 surface = chosenTheme.surface, onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { NuvoraApp(player, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }) }
+            )) { NuvoraApp(player, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink) }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        sharedYouTubeLink = youtubeLinkFromIntent(intent)
     }
 
     override fun onDestroy() {
@@ -103,7 +111,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -> Unit) {
+private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -> Unit, sharedYouTubeLink: String?) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
@@ -176,6 +184,14 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         onDispose { player.removeListener(listener) }
     }
 
+    LaunchedEffect(sharedYouTubeLink) {
+        if (!sharedYouTubeLink.isNullOrBlank() && extractYouTubeVideoId(sharedYouTubeLink) != null) {
+            selectedProvider = "YouTube Music"
+            prefs.edit().putString("music_provider", selectedProvider).apply()
+            tab = 1
+        }
+    }
+
     LaunchedEffect(Unit) { search("electronic chill") }
 
     fun play(track: MusicTrack) {
@@ -241,7 +257,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
             1 -> if (selectedProvider == "YouTube Music") {
-                Column(Modifier.fillMaxSize().padding(insets)) { YouTubeEmbedScreen() }
+                Column(Modifier.fillMaxSize().padding(insets)) { YouTubeEmbedScreen(sharedYouTubeLink) }
             } else Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
                 SearchBar(query, { query = it }, { search(query) }, { search(query) })
@@ -389,6 +405,16 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     }
 }
 
+private fun youtubeLinkFromIntent(intent: Intent?): String? {
+    if (intent == null) return null
+    val candidate = when (intent.action) {
+        Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+        Intent.ACTION_VIEW -> intent.dataString
+        else -> null
+    }?.trim().orEmpty()
+    return candidate.takeIf { extractYouTubeVideoId(it) != null }
+}
+
 private fun extractYouTubeVideoId(input: String): String? {
     val value = input.trim()
     val pattern = Regex("""(?:youtu\.be/|(?:www\.|music\.)?youtube\.com/(?:watch\?v=|embed/|shorts/))([A-Za-z0-9_-]{11})|^([A-Za-z0-9_-]{11})$""")
@@ -398,9 +424,9 @@ private fun extractYouTubeVideoId(input: String): String? {
 }
 
 @Composable
-private fun YouTubeEmbedScreen() {
-    var videoUrl by remember { mutableStateOf("") }
-    var videoId by remember { mutableStateOf<String?>(null) }
+private fun YouTubeEmbedScreen(sharedYouTubeLink: String? = null) {
+    var videoUrl by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink.orEmpty()) }
+    var videoId by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink?.let { extractYouTubeVideoId(it) }) }
     Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("YouTube Music", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Play an official YouTube video inside Nuvora. Find a song in YouTube Music, use Share → Copy link, then paste it here.", color = Muted, fontSize = 13.sp)
