@@ -148,6 +148,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 "JioSaavn" -> "https://www.jiosaavn.com/search/$encoded"
                 "Spotify" -> "https://open.spotify.com/search/$encoded"
                 "SoundCloud" -> "https://soundcloud.com/search?q=$encoded"
+                "Bandcamp" -> "https://bandcamp.com/search?q=$encoded"
                 else -> null
             }
             if (targetUrl != null) {
