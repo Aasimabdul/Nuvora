@@ -42,12 +42,12 @@ jobs:
           if-no-files-found: error
 
       - name: Publish APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora v0.3.1'))
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora v0.3.2'))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.3.1
+          tag_name: v0.3.2
           target_commitish: main
-          name: Nuvora v0.3.1
-          body: "Nuvora v0.3.1 clarifies authorized provider support, keeps Audius in-app playback, and documents external-only providers. Debug APK for testing."
+          name: Nuvora v0.3.2
+          body: "Nuvora v0.3.2 adds an official YouTube embedded video player, preserves Audius Media3 audio playback, and documents JioSaavn authorization limits. Debug APK for testing."
           files: Nuvora-debug.apk
           generate_release_notes: true
