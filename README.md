@@ -1,8 +1,8 @@
-# MuPlayer — Nuvora
+# Nuvora
 
-Nuvora is the repository for the next version of **MuPlayer**, an Android music app designed around online discovery and streaming.
+Nuvora is an Android music app project focused on online music discovery and a clean, modern listening experience.
 
-> **Current status:** UI prototype / foundation. The displayed tracks are sample content. No live catalogue provider or real streaming playback is connected yet; the source will be selected before provider integration.
+> **Current status:** UI prototype / foundation. The displayed tracks are sample content. No live catalogue provider or real streaming playback is connected yet; the music source will be selected before provider integration.
 
 ## Direction
 - Online-first discovery: home feed, moods, trending tracks, search, artists, albums and playlists.
@@ -12,13 +12,13 @@ Nuvora is the repository for the next version of **MuPlayer**, an Android music 
 - Library, favourites, playlists, queue and background playback as implementation milestones.
 
 ## Build
-The project uses Kotlin, Jetpack Compose, Material 3 and AndroidX Media3. A GitHub Actions workflow builds a debug APK on pushes and pull requests.
+The project uses Kotlin, Jetpack Compose, Material 3 and AndroidX Media3. GitHub Actions builds a debug APK on pushes and pull requests.
 
 ## Music source policy
 The provider is intentionally undecided. Integration will be based on the owner's choice and the provider's official API/terms, including attribution, authentication, ads and background-play rules. No unofficial extraction or terms-bypassing playback will be added.
 
-## Repository
-The previous MuPlayer repository remains separate and unchanged by this new implementation.
+## Project identity
+Nuvora is its own app and repository.
 
 ## Source switcher
-The Home header now includes a **Source** button with a picker for YouTube, JioSaavn, Spotify, SoundCloud and a future-sources option. At this stage it changes the selected UI source only; it does not connect to those services or enable live playback. Provider availability and permissions must be verified before implementing each integration.
+The Home header includes a **Source** button with a picker for YouTube, JioSaavn, Spotify, SoundCloud and a future-sources option. At this stage it changes the selected UI source only; it does not connect to those services or enable live playback. Provider availability and permissions must be verified before implementing each integration.
