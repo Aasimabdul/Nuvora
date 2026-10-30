@@ -59,6 +59,8 @@ private fun MuPlayerApp() {
     var active by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(false) }
     var fullPlayer by remember { mutableStateOf(false) }
+    var selectedSource by remember { mutableStateOf("YouTube") }
+    var showSourcePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Night,
@@ -87,16 +89,50 @@ private fun MuPlayerApp() {
                 { active = (active + 1) % tracks.size },
                 { active = (active - 1 + tracks.size) % tracks.size })
         } else when (tab) {
-            0 -> HomeScreen(Modifier.padding(insets), query, { query = it }, { active = it; fullPlayer = true }, { tab = 1 })
+            0 -> HomeScreen(Modifier.padding(insets), query, { query = it }, { active = it; fullPlayer = true }, { tab = 1 }, selectedSource, { showSourcePicker = true })
             1 -> SearchScreen(Modifier.padding(insets), query, { query = it }, { active = it; fullPlayer = true })
             2 -> CollectionScreen(Modifier.padding(insets), "Your library", "Your saved artists, albums and tracks will appear here.", "Explore music") { tab = 0 }
             else -> CollectionScreen(Modifier.padding(insets), "Your playlists", "Build collections around every mood.", "Discover music") { tab = 0 }
         }
     }
+
+    if (showSourcePicker) {
+        AlertDialog(
+            onDismissRequest = { showSourcePicker = false },
+            containerColor = Panel,
+            title = { Text("Choose music source", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Select a provider for MuPlayer. Connections are not active yet.", color = Muted, fontSize = 12.sp)
+                    listOf("YouTube", "JioSaavn", "Spotify", "SoundCloud", "More sources").forEach { source ->
+                        Surface(
+                            color = if (selectedSource == source) Color(0xFF1C3760) else Color.Transparent,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                selectedSource = source
+                                showSourcePicker = false
+                            }
+                        ) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (source == "YouTube") Icons.Rounded.PlayCircle else if (source == "More sources") Icons.Rounded.AddCircleOutline else Icons.Rounded.MusicNote,
+                                    contentDescription = null,
+                                    tint = if (selectedSource == source) Cyan else Color.White
+                                )
+                                Text(source, modifier = Modifier.weight(1f).padding(start = 12.dp), fontWeight = FontWeight.SemiBold)
+                                if (selectedSource == source) Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = Cyan)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSourcePicker = false }) { Text("Done") } }
+        )
+    }
 }
 
 @Composable
-private fun HomeScreen(modifier: Modifier, query: String, onQuery: (String) -> Unit, onTrack: (Int) -> Unit, onSearch: () -> Unit) {
+private fun HomeScreen(modifier: Modifier, query: String, onQuery: (String) -> Unit, onTrack: (Int) -> Unit, onSearch: () -> Unit, selectedSource: String, onSourceClick: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -105,8 +141,19 @@ private fun HomeScreen(modifier: Modifier, query: String, onQuery: (String) -> U
                     Text("Find your frequency.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
                     Text("A world of music, one tap away.", color = Muted, fontSize = 13.sp)
                 }
-                Box(Modifier.size(44.dp).clip(CircleShape).background(Panel), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.GraphicEq, null, tint = Cyan)
+                Surface(
+                    color = Panel,
+                    shape = RoundedCornerShape(16.dp),
+                    onClick = onSourceClick
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.SwapHoriz, contentDescription = "Change music source", tint = Cyan, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Column {
+                            Text("SOURCE", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+                            Text(selectedSource, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
         }
