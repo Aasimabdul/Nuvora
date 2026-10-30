@@ -1,93 +1,87 @@
-# Nuvora — MuPlayer UI Analysis & Build Blueprint
+# Nuvora — MuPlayer Online-First UI Blueprint
 
 > Product identity: Android app display name remains **MuPlayer**. Repository: **Nuvora**.
-> Status: UI/architecture discovery phase. Online music providers are intentionally undecided until the owner chooses them.
+> Product direction confirmed by the owner: **fully online music app**, not a local music player. The music source/provider is intentionally undecided.
 
-## 1. Existing MuPlayer audit
+## 1. Existing MuPlayer UI audit
 
-Reviewed the current repository's `MainActivity.kt`, `MuPlayerApp.kt`, `AndroidManifest.xml`, `app/build.gradle.kts`, `MainScreen.kt`, `HomeScreen.kt`, `LibraryScreen.kt`, `NowPlayingScreen.kt`, `PlaylistsScreen.kt`, `Theme.kt`, and `MusicViewModel.kt`.
+Reviewed the existing MuPlayer repository's Compose screens, theme, app manifest, Gradle setup, playback service and view-model direction.
 
-### What is worth retaining
-- Kotlin + Jetpack Compose + Material 3 foundation.
-- AndroidX Media3 ExoPlayer and MediaSessionService for playback.
-- Local audio permission flow and device library.
-- Home/library/folder/playlist navigation, mini-player and full player concepts.
-- Favorites/recent plays/play counts, theme palette, Coil artwork loading.
-- Existing app's offline-first/privacy-friendly behavior.
+### UX patterns worth retaining as concepts
+- Kotlin + Jetpack Compose + Material 3.
+- A persistent mini-player and dedicated Now Playing screen.
+- Familiar queue, favorites, playlists and theme concepts.
+- Media3 as a possible Android playback/session foundation, if compatible with the selected provider.
 
-### UI risks / improvement opportunities
-- Existing screen files are large; use smaller reusable composables and clear screen/state boundaries.
-- Make glass styling a consistent design system, not separate one-off effects.
-- Prioritize readable contrast and fast scrolling over heavy blur/continuous animation, especially on low-memory devices.
-- Separate provider-specific search/catalogue UI from the playback engine so sources can be chosen later.
-- Every visible control should work; avoid finished-looking placeholder controls.
-- Design deliberate loading, error, empty, permission-denied, offline and no-results states.
+### What changes for Nuvora
+- Online discovery is the primary experience; local MediaStore scanning is not the home screen or product premise.
+- Home feed, online search, moods, trending tracks, artists, albums and provider-backed playlists come first.
+- Search results and tracks must carry provider/source metadata and handle authentication, rate limits, unavailable tracks and network errors.
+- The provider adapter and player integration stay isolated so the design can be developed while the owner decides the source.
+- Every visible control should become functional; sample UI controls must be labelled as preview until connected.
 
 ## 2. Open-source reference review
 
-Reviewed Rhythm: https://github.com/cromaguy/Rhythm
-- Kotlin, Jetpack Compose, Material 3 Expressive, Media3/ExoPlayer and local-first library.
-- UX ideas worth studying: consistent shapes, library browsing, queue management, lyrics, responsive layouts, and separation of local playback from optional server streaming.
-- Rhythm is GPL-3.0. Do not copy its source or distinctive screen implementations unless Nuvora intentionally adopts compatible licensing and preserves required notices. For now, use high-level UX lessons only and implement an original design.
+Reviewed Rhythm: https://github.com/cromaguy/Rhythm. Its Kotlin/Compose/Material 3 approach offers general UX ideas around consistent components, queue management, lyrics and playback controls. Rhythm is GPL-3.0; Nuvora is implementing an original UI and does not copy its source or distinctive screen implementation. Revisit licensing before any direct code reuse.
 
-## 3. Proposed original MuPlayer visual system
+## 3. Original visual direction
 
-### Art direction
-- Dark navy foundation with restrained electric-blue/cyan accents.
-- Selective glass-like cards, with solid fallback surfaces for accessibility and performance.
-- Album artwork adds visual interest; typography and controls stay calm and legible.
-- Consistent rounded shapes, subtle elevation, short transitions, no constant heavy animations.
+- Dark navy foundation, electric blue and cyan accents.
+- Album-art-led cards with clear typography and strong contrast.
+- Subtle glass-like cards, not expensive blur everywhere.
+- Rounded surfaces, restrained transitions and lazy lists for performance.
+- Loading, offline, no-results, provider-error and sign-in states designed from the start.
 
-### Navigation
-- Home; Search (provider-neutral until sources are chosen); Library; Playlists; Settings.
-- Persistent mini-player above navigation when a track is active. Full-screen Now Playing opens from it.
+## 4. Online-first navigation
 
-### Screen requirements
-- **Home:** search entry, recently played, favorites/mixes, and a clear local/online distinction once sources are selected.
-- **Search:** only owner-approved provider filters; loading/error/empty states; results show artwork, title, artist, source attribution and supported actions.
-- **Library:** Songs, Albums, Artists, Folders and Favorites; sort/search; efficient lazy lists and artwork placeholders.
-- **Now Playing:** artwork, title/artist, seek bar, time, previous/play-pause/next, shuffle/repeat, queue, lyrics entry and supported output/volume controls.
-- **Queue:** reorder, remove and clear with confirmation; show source for streamed tracks.
-- **Playlists:** create, rename, add/remove tracks, reorder and persist locally.
-- **Settings:** theme/accent, playback, audio, library scan, privacy, source settings, about/licenses.
-- **Lyrics:** timed lyrics where permitted, manual/local fallback and graceful no-lyrics state.
+- **Home:** curated feed, trending tracks, mood/genre collections and recently played (when a provider supports it).
+- **Search:** provider-backed tracks, artists, albums and playlists; filters appear only when the chosen source supports them.
+- **Library:** saved/followed tracks, artists, albums and playlists supported by the provider; clearly show account or sync state.
+- **Playlists:** browse provider playlists and manage user playlists where API permissions allow.
+- **Now Playing:** artwork, title, artist, seek/progress, previous/play-pause/next, queue, shuffle/repeat only where supported, source attribution and lyrics where permitted.
+- **Settings:** account/source connection, playback behavior, theme, privacy, cache/download rules, about and licences.
+- **Mini-player:** persistent across main tabs once a real stream is active.
 
-## 4. Architecture direction
+## 5. Provider-neutral architecture
 
-- `ui/`: Compose screens, components, design tokens and navigation.
-- `playback/`: Media3 player/session integration and source-agnostic playback queue.
-- `library/`: local MediaStore scanning and local metadata.
-- `providers/`: interfaces for search/catalogue/stream resolution. Implement only sources explicitly selected by the owner and permitted by their terms.
-- `data/`: Room/DataStore persistence for playlists, favorites, settings and recent activity.
-- `domain/`: shared track/source models and use cases.
-- `tests/`: ViewModel/repository tests and UI smoke tests.
-- GitHub Actions: build/test checks; APK release workflow later.
+- ui/: Compose screens, design tokens, navigation, shared components.
+- domain/: track, artist, album, playlist and playback state models.
+- providers/: interfaces for catalogue search, metadata, stream/playback integration and account capabilities.
+- playback/: source-agnostic queue/session controls and Android background playback.
+- data/: settings, favourites, recently played and permitted playlist persistence.
+- tests/: UI state, provider mapping, playback state and build smoke tests.
 
-Keep local-file playback usable without internet. Provider failures must not break the local library.
+Provider contracts differ substantially. Do not assume a source can expose raw stream URLs or permit third-party playback; implement the selected provider's official supported playback flow.
 
-## 5. Streaming-source decision is pending
+## 6. Source selection is pending
 
-No online provider has been implemented or selected yet. Before adding a source, confirm official/authorized access, playback and attribution rules, account/auth requirements, ads, caching/download and background-play rules, and secret handling.
+No provider has been selected or connected yet. Before integration, confirm official/authorized access, API approval, authentication, attribution, playback UI rules, ads, background playback, caching/download restrictions and secret handling.
 
-YouTube's developer policies prohibit extracting/separating audio from YouTube videos and prohibit background playback through YouTube API services. Do not implement YouTube-to-MP3 extraction or an unofficial bypass. If selected, use a compliant playback path and required player/attribution behavior.
+Do not implement unofficial audio extraction or terms-bypassing playback. If YouTube is considered, follow YouTube API/player policies and do not extract audio or bypass its background-play restrictions.
 
-## 6. Implementation order
+## 7. Current repository implementation
 
-1. Finalize UI direction and source choices with the owner.
-2. Establish a buildable Android Gradle project in Nuvora without touching original MuPlayer.
-3. Implement design tokens, navigation, Home, Library and mini-player shell.
-4. Port/rebuild local playback with explicit package/app-ID decisions.
-5. Add full player, queue, playlists, lyrics and settings.
-6. Add only approved online provider adapters.
-7. Run Gradle build/tests, fix regressions, then publish a test APK through GitHub Actions.
+- Initial Android Gradle project and Compose app shell added.
+- Display name is **MuPlayer**; application ID is com.simbuild.nuvora so it can coexist with the older app.
+- Home, Search, Library, Playlists, mini-player and Now Playing layouts are represented in the initial UI prototype.
+- Current catalogue entries are sample content; buttons change preview UI state only. This is not yet live streaming.
+- GitHub Actions workflow added to build the debug APK.
 
-## 7. Acceptance criteria
+## 8. Next milestones
 
-- Nuvora is separate from the original repository.
-- Launcher/display name is MuPlayer.
-- Local music remains usable offline.
-- One consistent, accessible design system across screens.
-- Online providers are configurable and source attribution is visible.
-- No unsupported scraping, audio extraction, or terms-bypassing playback.
-- No secrets committed to source control.
-- CI builds the debug APK and tests pass before release.
+1. Review and polish the online-first UI.
+2. Choose a supported music source/provider.
+3. Implement real catalogue search and source attribution.
+4. Implement authorized streaming and background session behavior.
+5. Connect favorites, playlists, queue, lyrics and settings to provider capabilities.
+6. Run CI, fix build/test issues and publish a debug APK artifact.
+
+## Acceptance criteria
+
+- Nuvora stays separate from the original MuPlayer repository.
+- App display name remains MuPlayer.
+- Online discovery and streaming—not local file scanning—drive the product.
+- No fake sample data presented as live provider results.
+- Provider rules and attribution are respected.
+- No secrets are committed to source control.
+- CI builds the APK before a release is claimed.
