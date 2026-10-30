@@ -1,24 +1,34 @@
 # Nuvora
 
-Nuvora is an Android music app project focused on online music discovery and a clean, modern listening experience.
+Nuvora is an Android online music discovery and streaming app built with Kotlin, Jetpack Compose, and AndroidX Media3.
 
-> **Current status:** UI prototype / foundation. The displayed tracks are sample content. No live catalogue provider or real streaming playback is connected yet; the music source will be selected before provider integration.
+## Current implementation
 
-## Direction
-- Online-first discovery: home feed, moods, trending tracks, search, artists, albums and playlists.
+- Live track search and popular-track discovery through the Jamendo API.
+- Full track playback through Media3 ExoPlayer.
+- Play/pause and next-track controls.
+- Track metadata and artwork URLs from the catalogue.
+- Jamendo client ID entry in app settings, saved locally on the device.
 - Dark navy UI with electric-blue and cyan accents.
-- Selective glass-like surfaces, with performance and readability prioritized.
-- Source-neutral playback architecture so an approved provider can be added without redesigning the UI.
-- Library, favourites, playlists, queue and background playback as implementation milestones.
+
+**Setup required:** create your own application at https://devportal.jamendo.com/ and enter its client ID in Nuvora's settings. Until a valid client ID is entered, the app cannot fetch real tracks. Do not commit private credentials to the repository.
+
+## Provider and licensing
+
+This first integration uses Jamendo's catalogue of independent music. Jamendo's API documentation requires a registered client ID. Its API terms state that free use is for non-commercial projects; commercial use requires contacting Jamendo. Track licences vary, so preserve appropriate attribution and check each track's licence before redistributing or using it in any commercial context.
+
+- API docs: https://developer.jamendo.com/v3.0/docs
+- Authentication: https://developer.jamendo.com/v3.0/authentication
+- API terms: https://devportal.jamendo.com/api_terms_of_use
+
+This integration does not unlock commercial-label catalogues such as Spotify or YouTube Music. It also does not bypass any provider's access controls.
+
+## Current limitations
+
+- Background playback and media notification/service are not implemented yet.
+- Favourites, playlists, queue persistence, and account sync are not implemented yet.
+- This is an early streaming implementation and needs device testing before a release.
 
 ## Build
-The project uses Kotlin, Jetpack Compose, Material 3 and AndroidX Media3. GitHub Actions builds a debug APK on pushes and pull requests.
 
-## Music source policy
-The provider is intentionally undecided. Integration will be based on the owner's choice and the provider's official API/terms, including attribution, authentication, ads and background-play rules. No unofficial extraction or terms-bypassing playback will be added.
-
-## Project identity
-Nuvora is its own app and repository.
-
-## Source switcher
-The Home header includes a **Source** button with a picker for YouTube, JioSaavn, Spotify, SoundCloud and a future-sources option. At this stage it changes the selected UI source only; it does not connect to those services or enable live playback. Provider availability and permissions must be verified before implementing each integration.
+The project uses Kotlin, Jetpack Compose, Material 3, and AndroidX Media3. GitHub Actions builds a debug APK on pushes and pull requests.
