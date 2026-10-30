@@ -425,6 +425,27 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             }
                         }
                     }
+                    if (showCarouselSection && tracks.isNotEmpty()) {
+                        item {
+                            Text("Artists to explore", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                items(tracks.distinctBy { it.artist }.take(10), key = { "artist-${it.artist}" }) { artistTrack ->
+                                    Column(
+                                        Modifier.width(100.dp).clickable {
+                                            query = artistTrack.artist
+                                            search(query)
+                                            tab = 1
+                                        },
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Cover(artistTrack.artworkUrl, Modifier.size(84.dp).clip(RoundedCornerShape(50)))
+                                        Text(artistTrack.artist, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
