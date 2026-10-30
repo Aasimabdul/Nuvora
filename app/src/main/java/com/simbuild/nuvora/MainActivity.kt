@@ -1,6 +1,11 @@
 package com.simbuild.nuvora
 
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -39,6 +44,33 @@ private val Blue = Color(0xFF4D8DFF)
 private val Cyan = Color(0xFF5CE1E6)
 private val Muted = Color(0xFF9AA8C2)
 
+private data class NuvoraTheme(val label: String, val background: Color, val surface: Color, val primary: Color, val secondary: Color)
+private val themes = listOf(
+    NuvoraTheme("Neon Blue", Color(0xFF080D1A), Color(0xFF121B2E), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
+    NuvoraTheme("AMOLED Black", Color(0xFF000000), Color(0xFF101010), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
+    NuvoraTheme("Purple Night", Color(0xFF10091D), Color(0xFF21152F), Color(0xFFB18CFF), Color(0xFFE0B8FF)),
+    NuvoraTheme("Forest", Color(0xFF071510), Color(0xFF10251D), Color(0xFF48C78E), Color(0xFF9DE8C0)),
+    NuvoraTheme("Light", Color(0xFFF4F7FC), Color(0xFFFFFFFF), Color(0xFF245DCE), Color(0xFF007F91))
+)
+
+private fun downloadTrack(context: Context, track: MusicTrack) {
+    try {
+        val safeTitle = track.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(70).ifBlank { "Nuvora track" }
+        val request = DownloadManager.Request(Uri.parse(track.streamUrl))
+            .setTitle(safeTitle)
+            .setDescription("Downloading with Nuvora")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "Nuvora/$safeTitle.mp3")
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        manager.enqueue(request)
+        Toast.makeText(context, "Download started: $safeTitle", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "Could not start download", Toast.LENGTH_SHORT).show()
+    }
+}
+
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
 
@@ -46,10 +78,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         player = ExoPlayer.Builder(this).build()
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(
-                primary = Blue, secondary = Cyan, background = Night, surface = Panel,
-                onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { NuvoraApp(player) }
+            val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
+            var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
+            val chosenTheme = themes[themeIndex]
+            MaterialTheme(colorScheme = if (themeIndex == 4) lightColorScheme(
+                primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
+                surface = chosenTheme.surface, onBackground = Color(0xFF111827), onSurface = Color(0xFF111827)
+            ) else darkColorScheme(
+                primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
+                surface = chosenTheme.surface, onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
+            )) { NuvoraApp(player, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }) }
         }
     }
 
@@ -60,7 +98,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun NuvoraApp(player: ExoPlayer) {
+private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
+    var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
+    var editingSource by remember { mutableStateOf(sourceUrl) }
+    var showThemes by remember { mutableStateOf(false) }
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
@@ -77,7 +120,7 @@ private fun NuvoraApp(player: ExoPlayer) {
         error = null
         scope.launch {
             try {
-                tracks = AudiusRepository.searchTracks(term)
+                tracks = AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
                 if (tracks.isEmpty()) error = "No tracks found. Try another search."
             } catch (e: Exception) {
                 error = "Could not load music. Check your internet and try again."
@@ -116,7 +159,7 @@ private fun NuvoraApp(player: ExoPlayer) {
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
                             .background(Brush.horizontalGradient(listOf(Color(0xFF182641), Panel)))
-                            .clickable { tab = 3 }.padding(9.dp),
+                            .clickable { tab = 4 }.padding(9.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Cover(track.artworkUrl, Modifier.size(44.dp))
@@ -133,8 +176,8 @@ private fun NuvoraApp(player: ExoPlayer) {
                     }
                 }
                 NavigationBar(containerColor = Night, tonalElevation = 0.dp) {
-                    val labels = listOf("Home", "Search", "Library")
-                    val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite)
+                    val labels = listOf("Home", "Search", "Library", "Settings")
+                    val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
                     labels.forEachIndexed { index, label ->
                         NavigationBarItem(
                             selected = tab == index,
@@ -157,7 +200,7 @@ private fun NuvoraApp(player: ExoPlayer) {
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
-                        }, track.id in favorites)
+                        }, track.id in favorites, { downloadTrack(context, track) })
                     }
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
                 }
@@ -183,9 +226,58 @@ private fun NuvoraApp(player: ExoPlayer) {
                     items(saved, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             favorites = favorites - track.id
-                        }, true)
+                        }, true, { downloadTrack(context, track) })
                     }
                 }
+            }
+            3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text("Appearance", color = Muted, fontSize = 13.sp)
+                Box {
+                    OutlinedButton(onClick = { showThemes = true }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.Palette, contentDescription = null)
+                        Text("  Theme: ${themes[themeIndex].label}", modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+                    }
+                    DropdownMenu(expanded = showThemes, onDismissRequest = { showThemes = false }) {
+                        themes.forEachIndexed { index, theme ->
+                            DropdownMenuItem(
+                                text = { Text(theme.label) },
+                                leadingIcon = { if (index == themeIndex) Icon(Icons.Rounded.Check, contentDescription = null) },
+                                onClick = { onThemeChange(index); showThemes = false }
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider()
+                Text("Music source", color = Muted, fontSize = 13.sp)
+                Text("Use an Audius-compatible API endpoint. Default source: Audius.", fontSize = 13.sp, color = Muted)
+                OutlinedTextField(
+                    value = editingSource,
+                    onValueChange = { editingSource = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("API base URL") },
+                    placeholder = { Text("https://api.audius.co/v1") },
+                    singleLine = true
+                )
+                Button(
+                    onClick = {
+                        val candidate = editingSource.trim().trimEnd('/')
+                        if (candidate.startsWith("https://")) {
+                            sourceUrl = candidate
+                            prefs.edit().putString("source_url", candidate).apply()
+                            Toast.makeText(context, "Music source saved", Toast.LENGTH_SHORT).show()
+                            search(query.ifBlank { "electronic chill" })
+                        } else {
+                            Toast.makeText(context, "Please enter a valid HTTPS URL", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Icon(Icons.Rounded.Save, contentDescription = null); Text("  Save source") }
+                HorizontalDivider()
+                Text("Downloads", color = Muted, fontSize = 13.sp)
+                Text("Tap the download icon beside a track. Files are saved in Music/Nuvora and the Android download notification shows progress.", fontSize = 13.sp)
+                Text("Note: downloads depend on the selected provider's stream and usage permissions.", color = Muted, fontSize = 12.sp)
             }
             else -> active?.let { track ->
                 Column(Modifier.fillMaxSize().padding(insets).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -269,7 +361,7 @@ private fun Cover(url: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TrackRow(track: MusicTrack, isActive: Boolean, onPlay: () -> Unit, onFavorite: () -> Unit, favorite: Boolean) {
+private fun TrackRow(track: MusicTrack, isActive: Boolean, onPlay: () -> Unit, onFavorite: () -> Unit, favorite: Boolean, onDownload: () -> Unit = {}) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
             .background(if (isActive) Color(0xFF1A2E4F) else Panel)
@@ -285,6 +377,7 @@ private fun TrackRow(track: MusicTrack, isActive: Boolean, onPlay: () -> Unit, o
         IconButton(onClick = onFavorite) {
             Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) Cyan else Muted)
         }
+        IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = Cyan) }
         IconButton(onClick = onPlay) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play track", tint = Color.White) }
     }
 }
