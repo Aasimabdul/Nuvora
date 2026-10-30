@@ -52,7 +52,7 @@ This is an early release. Verify search, playback, theme persistence, and downlo
 
 
 ## v0.3.6
-- Added a time-based greeting, mood-based search cards, recently played tracks, and horizontal music discovery cards.
+- Added a time-based greeting, mood-based search cards, recently played tracks, horizontal music discovery cards, and a dedicated Discover destination.
 - Added Settings toggles to show or hide mood cards, recently played, and the horizontal carousel on Home.
 - Preserved existing music-source selection, themes, favourites, downloads, floating mini-player, and navigation.
 - YouTube remains limited to the official embedded player; native audio-only/background playback is not supported by the official YouTube API.
