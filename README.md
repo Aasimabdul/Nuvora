@@ -19,7 +19,16 @@ The default in-app playback provider is Audius, using `https://api.audius.co/v1`
 
 ## Provider support
 
-Direct in-app streaming currently uses the Audius public API. SoundCloud offers an official developer API, but custom playback requires registered API credentials and compliance with its playback/attribution rules; that authenticated integration is not included yet. YouTube Music and JioSaavn are not treated as direct stream sources, and Nuvora does not extract audio from those services.
+| Provider | In-app playback | Current behavior |
+| --- | --- | --- |
+| Audius | **Supported** | Search and stream eligible tracks with Media3 through the Audius public API. |
+| YouTube Music | Not supported | Search opens the official YouTube Music app/site. Nuvora does not extract audio or bypass YouTube playback rules. |
+| JioSaavn | Not configured | Search opens the official JioSaavn service. No authorized direct-stream API integration is included. |
+| Spotify | Not supported in Media3 | Search opens Spotify. Spotify's Android App Remote can control the official Spotify app, but does not provide Spotify audio streams to Nuvora. |
+| SoundCloud | Not configured | Search opens SoundCloud. In-app playback would require registered API access, authorized playback, and required attribution. |
+
+Only Audius is an in-app streaming provider in this public release. The selector describes this distinction in Settings, and selecting an external-only provider clears Audius search results so they are not mistaken for that provider's catalogue. Additional providers will only be integrated when their official developer access permits the intended playback experience.
+
 
 ## Downloads and rights
 
