@@ -6,7 +6,8 @@ Nuvora is an Android music discovery and streaming app built with Kotlin, Jetpac
 
 - Search and discover tracks from the Audius public catalogue for in-app playback.
 - Choose Audius, YouTube Music, JioSaavn, Spotify, or SoundCloud from the source selector.
-- YouTube Music, JioSaavn, Spotify, and SoundCloud searches hand off to the official app when Android supports the link, or to the service website.
+- Play a YouTube video inside Nuvora using YouTube's official embedded player by pasting a YouTube/YouTube Music video link. This is video playback, not audio extraction or background playback.
+- JioSaavn, Spotify, and SoundCloud searches hand off to the official app or website.
 - Stream tracks using Media3 ExoPlayer.
 - Save favourites during the current app session.
 - Choose from Neon Blue, AMOLED Black, Purple Night, Forest, and Light themes.
@@ -15,19 +16,19 @@ Nuvora is an Android music discovery and streaming app built with Kotlin, Jetpac
 
 ## Music source
 
-The default in-app playback provider is Audius, using `https://api.audius.co/v1`. The other listed providers are opened through their official search links; they are not streamed inside Nuvora. In the app, open **Settings → Music source**, enter an HTTPS base URL for an Audius-compatible API, and save it. The endpoint must provide the expected tracks search response and stream routes.
+Audius uses Media3 for in-app audio playback via `https://api.audius.co/v1`. YouTube Music selection provides an official embedded YouTube video player: find a track in YouTube Music, copy its video link, then paste it in the Search tab. This does not provide audio-only extraction or background playback. JioSaavn, Spotify, and SoundCloud still open their official apps/sites. In the app, open **Settings → Music source**, enter an HTTPS base URL for an Audius-compatible API, and save it. The endpoint must provide the expected tracks search response and stream routes.
 
 ## Provider support
 
 | Provider | In-app playback | Current behavior |
 | --- | --- | --- |
 | Audius | **Supported** | Search and stream eligible tracks with Media3 through the Audius public API. |
-| YouTube Music | Not supported | Search opens the official YouTube Music app/site. Nuvora does not extract audio or bypass YouTube playback rules. |
-| JioSaavn | Not configured | Search opens the official JioSaavn service. No authorized direct-stream API integration is included. |
+| YouTube Music | **Embedded video supported** | Paste a video URL in the Search tab to play through the official YouTube embedded player. No audio-only extraction or background playback; some videos may disallow embedding. |
+| JioSaavn | Not configured | Search opens the official JioSaavn service. Research found public community APIs are explicitly unofficial; JioSaavn terms prohibit automated/unofficial access unless separately authorized. We need written partner authorization/API documentation before adding direct playback. |
 | Spotify | Not supported in Media3 | Search opens Spotify. Spotify's Android App Remote can control the official Spotify app, but does not provide Spotify audio streams to Nuvora. |
 | SoundCloud | Not configured | Search opens SoundCloud. In-app playback would require registered API access, authorized playback, and required attribution. |
 
-Only Audius is an in-app streaming provider in this public release. The selector describes this distinction in Settings, and selecting an external-only provider clears Audius search results so they are not mistaken for that provider's catalogue. Additional providers will only be integrated when their official developer access permits the intended playback experience.
+Audius is the in-app audio-streaming provider. YouTube is supported as an official embedded video player only. JioSaavn direct streaming is not enabled because no public official partner playback SDK/API was verified. The selector describes this distinction in Settings, and selecting an external-only provider clears Audius search results so they are not mistaken for that provider's catalogue. Additional providers will only be integrated when their official developer access permits the intended playback experience.
 
 
 ## Downloads and rights
