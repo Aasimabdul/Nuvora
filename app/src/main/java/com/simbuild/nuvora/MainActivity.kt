@@ -234,7 +234,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         color = Panel.copy(alpha = 0.98f),
                         tonalElevation = 3.dp,
                         shadowElevation = 10.dp,
-                        modifier = Modifier.fillMaxWidth().clickable { tab = 4 }
+                        modifier = Modifier.fillMaxWidth().clickable { tab = 5 }
                     ) {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -279,8 +279,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         tonalElevation = 0.dp,
                         modifier = Modifier.height(64.dp)
                     ) {
-                        val labels = listOf("Home", "Search", "Library", "Settings")
-                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
+                        val labels = listOf("Home", "Search", "Library", "Discover", "Settings")
+                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Explore, Icons.Rounded.Settings)
                         labels.forEachIndexed { index, label ->
                             NavigationBarItem(
                                 selected = tab == index,
@@ -461,7 +461,20 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     }
                 }
             }
-            3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            3 -> Column(Modifier.fillMaxSize().padding(insets)) {
+                Text("Discover", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 8.dp))
+                SearchBar(query, { query = it }, { search(query) }, { search("electronic chill") })
+                StatusMessages(loading, error)
+                LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { Text("Trending discoveries", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
+                    items(tracks, key = { "discover-tab-${it.id}" }) { track ->
+                        TrackRow(track, active?.id == track.id, { play(track) }, {
+                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                        }, track.id in favorites, { downloadTrack(context, track) })
+                    }
+                }
+            }
+            4 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Text("Appearance", color = Muted, fontSize = 13.sp)
                 Box {
