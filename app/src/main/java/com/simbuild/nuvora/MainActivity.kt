@@ -121,6 +121,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
 
     fun search(term: String) {
         if (selectedProvider != "Audius") {
+            tracks = emptyList()
+            loading = false
+            error = "$selectedProvider is an external handoff in this release; Nuvora cannot play this provider's streams directly."
             val encoded = Uri.encode(term.ifBlank { "music" })
             val targetUrl = when (selectedProvider) {
                 "YouTube Music" -> "https://music.youtube.com/search?q=$encoded"
@@ -287,6 +290,11 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                 onClick = {
                                     selectedProvider = provider
                                     prefs.edit().putString("music_provider", provider).apply()
+                                    if (provider != "Audius") {
+                                        tracks = emptyList()
+                                        loading = false
+                                        error = null
+                                    }
                                     showProviders = false
                                     Toast.makeText(context, if (provider == "Audius") "Audius in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
                                 }
@@ -295,7 +303,14 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     }
                 }
                 Text(
-                    if (selectedProvider == "Audius") "Audius tracks play inside Nuvora. Other services open their official app or website when you search." else "Searches open $selectedProvider in its official app when supported by Android, otherwise in your browser.",
+                    when (selectedProvider) {
+                        "Audius" -> "IN-APP PLAYBACK · Search and stream available Audius tracks inside Nuvora using Media3. Availability depends on creator settings."
+                        "YouTube Music" -> "EXTERNAL ONLY · Opens the official YouTube Music app or website. Audio-only extraction and background playback are not implemented."
+                        "JioSaavn" -> "EXTERNAL ONLY · Opens the official JioSaavn service. No authorized direct-stream integration is configured."
+                        "Spotify" -> "EXTERNAL ONLY · Opens Spotify. Its Android SDK can control the official Spotify app; it does not expose Spotify audio streams to Nuvora."
+                        "SoundCloud" -> "EXTERNAL ONLY · Opens SoundCloud. In-app playback requires approved API credentials and compliance with SoundCloud's playback and attribution rules."
+                        else -> "External service handoff."
+                    },
                     fontSize = 13.sp, color = Muted
                 )
                 if (selectedProvider == "Audius") {
