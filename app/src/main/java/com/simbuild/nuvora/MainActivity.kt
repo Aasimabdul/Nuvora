@@ -120,6 +120,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius") ?: "Audius") }
     var showProviders by remember { mutableStateOf(false) }
     var showThemes by remember { mutableStateOf(false) }
+    var showMoodSection by remember { mutableStateOf(prefs.getBoolean("home_moods", true)) }
+    var showRecentSection by remember { mutableStateOf(prefs.getBoolean("home_recent", true)) }
+    var showCarouselSection by remember { mutableStateOf(prefs.getBoolean("home_carousel", true)) }
     val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud", "Bandcamp")
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -367,7 +370,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 SearchBar(query, { query = it }, { tab = 1; search(query) }, { search("electronic chill") })
                 StatusMessages(loading, error)
                 LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
+                    if (showMoodSection) item {
                         Text("Pick your mood", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(listOf("Chill", "Electronic", "Focus", "Energy", "Ambient", "Workout")) { mood ->
@@ -394,7 +397,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             }
                         }
                     }
-                    if (recentlyPlayed.isNotEmpty()) {
+                    if (showRecentSection && recentlyPlayed.isNotEmpty()) {
                         item {
                             Text("Recently played", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -408,7 +411,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             }
                         }
                     }
-                    item {
+                    if (showCarouselSection) item {
                         Text("Discover music", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
                         if (tracks.isNotEmpty()) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -476,6 +479,29 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             )
                         }
                     }
+                }
+                HorizontalDivider()
+                Text("Home screen sections", color = Muted, fontSize = 13.sp)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Mood cards", modifier = Modifier.weight(1f))
+                    Switch(checked = showMoodSection, onCheckedChange = {
+                        showMoodSection = it
+                        prefs.edit().putBoolean("home_moods", it).apply()
+                    })
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Recently played", modifier = Modifier.weight(1f))
+                    Switch(checked = showRecentSection, onCheckedChange = {
+                        showRecentSection = it
+                        prefs.edit().putBoolean("home_recent", it).apply()
+                    })
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Horizontal music carousel", modifier = Modifier.weight(1f))
+                    Switch(checked = showCarouselSection, onCheckedChange = {
+                        showCarouselSection = it
+                        prefs.edit().putBoolean("home_carousel", it).apply()
+                    })
                 }
                 HorizontalDivider()
                 Text("Music source", color = Muted, fontSize = 13.sp)
