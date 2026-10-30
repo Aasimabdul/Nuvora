@@ -152,9 +152,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     }
 
     Scaffold(
-        containerColor = Night,
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            Column(Modifier.fillMaxWidth().background(Night).padding(horizontal = 12.dp)) {
+            Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 12.dp)) {
                 active?.let { track ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
@@ -175,7 +175,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         }
                     }
                 }
-                NavigationBar(containerColor = Night, tonalElevation = 0.dp) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.background, tonalElevation = 0.dp) {
                     val labels = listOf("Home", "Search", "Library", "Settings")
                     val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
                     labels.forEachIndexed { index, label ->
@@ -213,7 +213,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
-                        }, track.id in favorites)
+                        }, track.id in favorites, { downloadTrack(context, track) })
                     }
                 }
             }
@@ -266,8 +266,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         if (candidate.startsWith("https://")) {
                             sourceUrl = candidate
                             prefs.edit().putString("source_url", candidate).apply()
-                            Toast.makeText(context, "Music source saved", Toast.LENGTH_SHORT).show()
-                            search(query.ifBlank { "electronic chill" })
+                            Toast.makeText(context, "Music source saved. Run a search to load from it.", Toast.LENGTH_SHORT).show()
                         } else {
                             Toast.makeText(context, "Please enter a valid HTTPS URL", Toast.LENGTH_SHORT).show()
                         }
