@@ -241,7 +241,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
             1 -> if (selectedProvider == "YouTube Music") {
-                YouTubeEmbedScreen()
+                Column(Modifier.fillMaxSize().padding(insets)) { YouTubeEmbedScreen() }
             } else Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
                 SearchBar(query, { query = it }, { search(query) }, { search(query) })
