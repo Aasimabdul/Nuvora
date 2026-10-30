@@ -129,7 +129,17 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var playerError by remember { mutableStateOf<String?>(null) }
+    var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(player, active, playing) {
+        while (active != null) {
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            durationMs = player.duration.takeIf { it > 0L } ?: 0L
+            kotlinx.coroutines.delay(500)
+        }
+    }
 
     fun search(term: String) {
         if (selectedProvider == "YouTube Music") {
@@ -206,37 +216,78 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 12.dp)) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 active?.let { track ->
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                            .background(Brush.horizontalGradient(listOf(Color(0xFF182641), Panel)))
-                            .clickable { tab = 4 }.padding(9.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = Panel.copy(alpha = 0.98f),
+                        tonalElevation = 3.dp,
+                        shadowElevation = 10.dp,
+                        modifier = Modifier.fillMaxWidth().clickable { tab = 4 }
                     ) {
-                        Cover(track.artworkUrl, Modifier.size(44.dp))
-                        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                            Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1)
-                        }
-                        IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
-                            Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause")
-                        }
-                        IconButton(onClick = { player.seekToNextMediaItem() }) {
-                            Icon(Icons.Rounded.SkipNext, contentDescription = "Next")
+                        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Cover(track.artworkUrl, Modifier.size(42.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
+                                    Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause")
+                                }
+                                IconButton(onClick = { player.seekToNextMediaItem() }) {
+                                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next")
+                                }
+                            }
+                            if (durationMs > 0L) {
+                                Slider(
+                                    value = (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f),
+                                    onValueChange = { positionMs = (it * durationMs).toLong() },
+                                    onValueChangeFinished = { player.seekTo(positionMs) },
+                                    modifier = Modifier.fillMaxWidth().height(18.dp),
+                                    thumb = { SliderDefaults.Thumb(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, colors = SliderDefaults.colors(thumbColor = Cyan)) },
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = Cyan,
+                                        activeTrackColor = Cyan,
+                                        inactiveTrackColor = Muted.copy(alpha = 0.25f)
+                                    )
+                                )
+                            }
                         }
                     }
                 }
-                NavigationBar(containerColor = MaterialTheme.colorScheme.background, tonalElevation = 0.dp) {
-                    val labels = listOf("Home", "Search", "Library", "Settings")
-                    val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
-                    labels.forEachIndexed { index, label ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            onClick = { tab = index },
-                            icon = { Icon(icons[index], contentDescription = label) },
-                            label = { Text(label, fontSize = 10.sp) }
-                        )
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = Panel.copy(alpha = 0.98f),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 12.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                        modifier = Modifier.height(64.dp)
+                    ) {
+                        val labels = listOf("Home", "Search", "Library", "Settings")
+                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
+                        labels.forEachIndexed { index, label ->
+                            NavigationBarItem(
+                                selected = tab == index,
+                                onClick = { tab = index },
+                                icon = { Icon(icons[index], contentDescription = label) },
+                                label = { Text(label, fontSize = 10.sp) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Cyan,
+                                    selectedTextColor = Cyan,
+                                    indicatorColor = Blue.copy(alpha = 0.18f),
+                                    unselectedIconColor = Muted,
+                                    unselectedTextColor = Muted
+                                )
+                            )
+                        }
                     }
                 }
             }
