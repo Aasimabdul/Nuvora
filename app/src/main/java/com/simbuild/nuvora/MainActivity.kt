@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -123,6 +124,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
+    val recentlyPlayed = remember { mutableStateListOf<MusicTrack>() }
     var favorites by remember { mutableStateOf<Set<String>>(emptySet()) }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
     var playing by remember { mutableStateOf(false) }
@@ -207,6 +209,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
 
     fun play(track: MusicTrack) {
         active = track
+        recentlyPlayed.removeAll { it.id == track.id }
+        recentlyPlayed.add(0, track)
+        while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
         playerError = null
         player.setMediaItem(MediaItem.fromUri(track.streamUrl))
         player.prepare()
@@ -350,11 +355,74 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         }
                     }
                 }
-                Text("Discover independent music.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp))
+                Text(
+                    when (java.time.LocalTime.now().hour) {
+                        in 5..11 -> "Good morning. Find your frequency."
+                        in 12..16 -> "Good afternoon. Find your frequency."
+                        in 17..21 -> "Good evening. Find your frequency."
+                        else -> "Welcome back. Find your frequency."
+                    },
+                    color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp)
+                )
                 SearchBar(query, { query = it }, { tab = 1; search(query) }, { search("electronic chill") })
                 StatusMessages(loading, error)
                 LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { Text("Discover music", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp)) }
+                    item {
+                        Text("Pick your mood", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(listOf("Chill", "Electronic", "Focus", "Energy", "Ambient", "Workout")) { mood ->
+                                Surface(shape = RoundedCornerShape(18.dp), color = Panel, modifier = Modifier.clickable {
+                                    query = mood.lowercase()
+                                    search(query)
+                                }) {
+                                    Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            when (mood) {
+                                                "Chill" -> Icons.Rounded.Waves
+                                                "Electronic" -> Icons.Rounded.GraphicEq
+                                                "Focus" -> Icons.Rounded.Headphones
+                                                "Energy" -> Icons.Rounded.Bolt
+                                                "Ambient" -> Icons.Rounded.Cloud
+                                                else -> Icons.Rounded.FitnessCenter
+                                            },
+                                            contentDescription = null, tint = Cyan, modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(7.dp))
+                                        Text(mood, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (recentlyPlayed.isNotEmpty()) {
+                        item {
+                            Text("Recently played", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(recentlyPlayed, key = { "recent-${it.id}" }) { track ->
+                                    Column(Modifier.width(112.dp).clickable { play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Cover(track.artworkUrl, Modifier.size(112.dp))
+                                        Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Text("Discover music", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+                        if (tracks.isNotEmpty()) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(tracks.take(8), key = { "discover-${it.id}" }) { track ->
+                                    Column(Modifier.width(124.dp).clickable { play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Cover(track.artworkUrl, Modifier.size(124.dp))
+                                        Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
