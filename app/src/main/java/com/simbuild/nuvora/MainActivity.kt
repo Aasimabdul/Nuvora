@@ -7,10 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -21,9 +21,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.launch
 
 private val Night = Color(0xFF080D1A)
 private val Panel = Color(0xFF121B2E)
@@ -34,298 +39,207 @@ private val Muted = Color(0xFF9AA8C2)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val preferences = getSharedPreferences("nuvora", MODE_PRIVATE)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(
                 primary = Blue, secondary = Cyan, background = Night, surface = Panel,
                 onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { NuvoraApp() }
-        }
-    }
-}
+            )) {
+                val player = remember { ExoPlayer.Builder(this@MainActivity).build() }
+                var clientId by remember { mutableStateOf(preferences.getString("jamendo_client_id", "") ?: "") }
+                var showSettings by remember { mutableStateOf(clientId.isBlank()) }
+                var search by remember { mutableStateOf("") }
+                var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
+                var current by remember { mutableStateOf<MusicTrack?>(null) }
+                var isPlaying by remember { mutableStateOf(false) }
+                var loading by remember { mutableStateOf(false) }
+                var error by remember { mutableStateOf<String?>(null) }
+                val scope = rememberCoroutineScope()
+                val repository = remember(clientId) { JamendoRepository(clientId) }
 
-private data class DemoTrack(val title: String, val artist: String, val color: Color, val mark: String)
-private val tracks = listOf(
-    DemoTrack("Midnight City", "M83", Color(0xFF3654A5), "✦"),
-    DemoTrack("After Hours", "The Weeknd", Color(0xFF7B3D79), "☾"),
-    DemoTrack("Ocean Eyes", "Billie Eilish", Color(0xFF247F91), "≈"),
-    DemoTrack("Sunset Lover", "Petit Biscuit", Color(0xFFB86B4C), "☼"),
-    DemoTrack("A Moment Apart", "ODESZA", Color(0xFF5C6E9C), "◈")
-)
-
-@Composable
-private fun NuvoraApp() {
-    var tab by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
-    var active by remember { mutableIntStateOf(0) }
-    var playing by remember { mutableStateOf(false) }
-    var fullPlayer by remember { mutableStateOf(false) }
-    var selectedSource by remember { mutableStateOf("YouTube") }
-    var showSourcePicker by remember { mutableStateOf(false) }
-
-    Scaffold(
-        containerColor = Night,
-        bottomBar = {
-            Column(Modifier.fillMaxWidth().background(Night).padding(horizontal = 12.dp)) {
-                MiniPlayer(tracks[active], playing, { fullPlayer = true }, { playing = !playing }, {
-                    active = (active + 1) % tracks.size
-                })
-                NavigationBar(containerColor = Night, tonalElevation = 0.dp) {
-                    val labels = listOf("Home", "Search", "Library", "Playlists")
-                    val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.LibraryMusic, Icons.Rounded.PlaylistPlay)
-                    labels.forEachIndexed { index, label ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            onClick = { tab = index; fullPlayer = false },
-                            icon = { Icon(icons[index], contentDescription = label) },
-                            label = { Text(label, fontSize = 10.sp) }
-                        )
+                DisposableEffect(player) {
+                    val listener = object : Player.Listener {
+                        override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+                    }
+                    player.addListener(listener)
+                    onDispose {
+                        player.removeListener(listener)
+                        player.release()
                     }
                 }
-            }
-        }
-    ) { insets ->
-        if (fullPlayer) {
-            NowPlaying(tracks[active], playing, { fullPlayer = false }, { playing = !playing },
-                { active = (active + 1) % tracks.size },
-                { active = (active - 1 + tracks.size) % tracks.size })
-        } else when (tab) {
-            0 -> HomeScreen(Modifier.padding(insets), query, { query = it }, { active = it; fullPlayer = true }, { tab = 1 }, selectedSource, { showSourcePicker = true })
-            1 -> SearchScreen(Modifier.padding(insets), query, { query = it }, { active = it; fullPlayer = true })
-            2 -> CollectionScreen(Modifier.padding(insets), "Your library", "Your saved artists, albums and tracks will appear here.", "Explore music") { tab = 0 }
-            else -> CollectionScreen(Modifier.padding(insets), "Your playlists", "Build collections around every mood.", "Discover music") { tab = 0 }
-        }
-    }
 
-    if (showSourcePicker) {
-        AlertDialog(
-            onDismissRequest = { showSourcePicker = false },
-            containerColor = Panel,
-            title = { Text("Choose music source", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Select a provider for Nuvora. Connections are not active yet.", color = Muted, fontSize = 12.sp)
-                    listOf("YouTube", "JioSaavn", "Spotify", "SoundCloud", "More sources").forEach { source ->
-                        Surface(
-                            color = if (selectedSource == source) Color(0xFF1C3760) else Color.Transparent,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                selectedSource = source
-                                showSourcePicker = false
-                            }
+                fun loadTracks(term: String = search) {
+                    if (clientId.isBlank()) {
+                        showSettings = true
+                        return
+                    }
+                    scope.launch {
+                        loading = true
+                        error = null
+                        try {
+                            tracks = repository.searchTracks(term)
+                            if (tracks.isEmpty()) error = "No playable tracks found. Try another search."
+                        } catch (e: Exception) {
+                            error = e.message ?: "Could not connect to the music catalogue."
+                        } finally {
+                            loading = false
+                        }
+                    }
+                }
+
+                Surface(Modifier.fillMaxSize(), color = Night) {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 20.dp, end = 14.dp, top = 22.dp, bottom = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(Modifier.padding(horizontal = 12.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    if (source == "YouTube") Icons.Rounded.PlayCircle else if (source == "More sources") Icons.Rounded.AddCircleOutline else Icons.Rounded.MusicNote,
-                                    contentDescription = null,
-                                    tint = if (selectedSource == source) Cyan else Color.White
-                                )
-                                Text(source, modifier = Modifier.weight(1f).padding(start = 12.dp), fontWeight = FontWeight.SemiBold)
-                                if (selectedSource == source) Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = Cyan)
+                            Column(Modifier.weight(1f)) {
+                                Text("NUVORA", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp)
+                                Text("Find your frequency.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                                Text("Independent music, streamed online.", color = Muted, fontSize = 13.sp)
+                            }
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Rounded.Settings, contentDescription = "Music provider settings", tint = Cyan)
+                            }
+                        }
+                        OutlinedTextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                            placeholder = { Text("Search songs or artists", color = Muted) },
+                            leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Muted) },
+                            trailingIcon = {
+                                IconButton(onClick = { loadTracks(search) }) {
+                                    Icon(Icons.Rounded.ArrowForward, "Search", tint = Cyan)
+                                }
+                            },
+                            shape = RoundedCornerShape(18.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                        )
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (search.isBlank()) "DISCOVER MUSIC" else "SEARCH RESULTS", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { search = ""; loadTracks("") }) { Text("Popular", color = Muted) }
+                        }
+                        when {
+                            loading -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Cyan)
+                            }
+                            tracks.isEmpty() -> Column(
+                                Modifier.fillMaxWidth().weight(1f).padding(28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Rounded.GraphicEq, null, tint = Cyan, modifier = Modifier.size(58.dp))
+                                Spacer(Modifier.height(16.dp))
+                                Text("Real music. No fake tracks.", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(8.dp))
+                                Text(error ?: "Connect your Jamendo developer app, then load the live catalogue.", color = Muted)
+                                Spacer(Modifier.height(16.dp))
+                                Button(onClick = { if (clientId.isBlank()) showSettings = true else loadTracks("") }) {
+                                    Text(if (clientId.isBlank()) "Connect music catalogue" else "Load music")
+                                }
+                            }
+                            else -> LazyColumn(
+                                Modifier.weight(1f),
+                                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 18.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(tracks, key = { it.id }) { track ->
+                                    Row(
+                                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                            .background(Panel).clickable {
+                                                current = track
+                                                player.setMediaItem(MediaItem.fromUri(track.streamUrl))
+                                                player.prepare()
+                                                player.play()
+                                            }.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            Modifier.size(52.dp).clip(RoundedCornerShape(14.dp))
+                                                .background(Brush.linearGradient(listOf(Color(0xFF1D4C83), Color(0xFF27304F)))),
+                                            contentAlignment = Alignment.Center
+                                        ) { Icon(Icons.Rounded.MusicNote, null, tint = Cyan, modifier = Modifier.size(26.dp)) }
+                                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                            Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            if (track.licenseUrl.isNotBlank()) Text("License details available", color = Cyan, fontSize = 10.sp)
+                                        }
+                                        IconButton(onClick = {
+                                            current = track
+                                            player.setMediaItem(MediaItem.fromUri(track.streamUrl))
+                                            player.prepare()
+                                            player.play()
+                                        }) { Icon(Icons.Rounded.PlayArrow, "Play ${track.title}", tint = Color.White) }
+                                    }
+                                }
+                            }
+                        }
+                        if (error != null && tracks.isNotEmpty()) Text(error!!, color = Color(0xFFFF9C9C), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                        current?.let { track ->
+                            Column(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 16.dp, vertical = 10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(track.artist, color = Muted, fontSize = 12.sp)
+                                    }
+                                    IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
+                                        Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play or pause", tint = Cyan)
+                                    }
+                                    IconButton(onClick = {
+                                        val next = tracks.indexOfFirst { it.id == track.id } + 1
+                                        if (next in tracks.indices) {
+                                            current = tracks[next]
+                                            player.setMediaItem(MediaItem.fromUri(tracks[next].streamUrl))
+                                            player.prepare()
+                                            player.play()
+                                        }
+                                    }) { Icon(Icons.Rounded.SkipNext, "Next track") }
+                                }
+                                if (track.licenseUrl.isNotBlank()) {
+                                    TextButton(onClick = { }) { Text("Track licence: Jamendo / Creative Commons", color = Muted, fontSize = 10.sp) }
+                                }
                             }
                         }
                     }
                 }
-            },
-            confirmButton = { TextButton(onClick = { showSourcePicker = false }) { Text("Done") } }
-        )
-    }
-}
 
-@Composable
-private fun HomeScreen(modifier: Modifier, query: String, onQuery: (String) -> Unit, onTrack: (Int) -> Unit, onSearch: () -> Unit, selectedSource: String, onSourceClick: () -> Unit) {
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("NUVORA", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp)
-                    Text("Find your frequency.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                    Text("A world of music, one tap away.", color = Muted, fontSize = 13.sp)
-                }
-                Surface(
-                    color = Panel,
-                    shape = RoundedCornerShape(16.dp),
-                    onClick = onSourceClick
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.SwapHoriz, contentDescription = "Change music source", tint = Cyan, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Column {
-                            Text("SOURCE", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
-                            Text(selectedSource, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                if (showSettings) {
+                    var draft by remember(clientId) { mutableStateOf(clientId) }
+                    AlertDialog(
+                        onDismissRequest = { if (clientId.isNotBlank()) showSettings = false },
+                        containerColor = Panel,
+                        title = { Text("Connect music catalogue", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("Nuvora uses Jamendo's licensed independent-music catalogue. Create an app at developer.jamendo.com and paste its client ID below.", color = Muted)
+                                OutlinedTextField(
+                                    value = draft,
+                                    onValueChange = { draft = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("Jamendo client ID") },
+                                    singleLine = true
+                                )
+                                Text("Jamendo's free API use is for non-commercial projects. Check each track's licence.", color = Muted, fontSize = 11.sp)
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                clientId = draft.trim()
+                                preferences.edit().putString("jamendo_client_id", clientId).apply()
+                                showSettings = false
+                                tracks = emptyList()
+                                loadTracks("")
+                            }) { Text("Connect", color = Cyan) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showSettings = false }) { Text("Cancel") }
                         }
-                    }
+                    )
                 }
             }
-        }
-        item {
-            OutlinedTextField(
-                value = query, onValueChange = onQuery, readOnly = true,
-                modifier = Modifier.fillMaxWidth().clickable { onSearch() },
-                placeholder = { Text("Artists, tracks, moods...", color = Muted) },
-                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Muted) },
-                shape = RoundedCornerShape(18.dp), singleLine = true
-            )
-        }
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth().height(190.dp).clickable { onTrack(0) },
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = Panel)
-            ) {
-                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF183F79), Color(0xFF17213C), Color(0xFF301C54)))).padding(22.dp)) {
-                    Column(Modifier.align(Alignment.CenterStart)) {
-                        Text("YOUR NEXT OBSESSION", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                        Spacer(Modifier.height(9.dp))
-                        Text("Late night\nfrequency", fontSize = 29.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        Text("A mood, not a genre.", color = Color(0xFFD0D9EF), fontSize = 12.sp)
-                    }
-                    Box(Modifier.align(Alignment.CenterEnd).size(90.dp).clip(RoundedCornerShape(24.dp)).background(Color(0x334D8DFF)), contentAlignment = Alignment.Center) {
-                        Text("♫", fontSize = 50.sp, color = Color.White)
-                    }
-                }
-            }
-        }
-        item { SectionHeader("Made for your mood", "Explore") }
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                itemsIndexed(tracks) { index, track -> MoodCard(track) { onTrack(index) } }
-            }
-        }
-        item { SectionHeader("Trending right now", "See all") }
-        itemsIndexed(tracks) { index, track -> TrackRow(track, index) { onTrack(index) } }
-        item { Text("Design preview · Online catalogue and playback provider are not connected yet.", color = Muted, fontSize = 11.sp) }
-    }
-}
-
-@Composable
-private fun SearchScreen(modifier: Modifier, query: String, onQuery: (String) -> Unit, onTrack: (Int) -> Unit) {
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item {
-            Text("Search", fontSize = 29.sp, fontWeight = FontWeight.Bold)
-            Text("Search across connected music sources.", color = Muted, fontSize = 13.sp)
-        }
-        item {
-            OutlinedTextField(value = query, onValueChange = onQuery, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("What do you want to hear?") },
-                leadingIcon = { Icon(Icons.Rounded.Search, null) }, shape = RoundedCornerShape(18.dp), singleLine = true)
-        }
-        item { SectionHeader(if (query.isBlank()) "Popular searches" else "Preview matches", null) }
-        itemsIndexed(tracks.filter { query.isBlank() || it.title.contains(query, true) || it.artist.contains(query, true) }) { _, track ->
-            val index = tracks.indexOf(track)
-            TrackRow(track, index) { onTrack(index) }
-        }
-        item { Text("These are sample UI entries, not live search results.", color = Muted, fontSize = 11.sp) }
-    }
-}
-
-@Composable
-private fun CollectionScreen(modifier: Modifier, title: String, subtitle: String, action: String, onAction: () -> Unit) {
-    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(90.dp).clip(RoundedCornerShape(28.dp)).background(Panel), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.LibraryMusic, null, tint = Cyan, modifier = Modifier.size(38.dp))
-        }
-        Spacer(Modifier.height(20.dp))
-        Text(title, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(subtitle, color = Muted)
-        Spacer(Modifier.height(20.dp))
-        Surface(color = Color(0xFF182D50), shape = RoundedCornerShape(16.dp), modifier = Modifier.clickable(onClick = onAction)) {
-            Text(action, color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp))
-        }
-    }
-}
-
-@Composable
-private fun MoodCard(track: DemoTrack, onClick: () -> Unit) {
-    Column(Modifier.width(132.dp).clickable(onClick = onClick)) {
-        Artwork(track, Modifier.fillMaxWidth().height(132.dp), true)
-        Spacer(Modifier.height(8.dp))
-        Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1)
-    }
-}
-
-@Composable
-private fun TrackRow(track: DemoTrack, index: Int, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        Artwork(track, Modifier.size(54.dp))
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(track.artist, color = Muted, fontSize = 12.sp)
-        }
-        IconButton(onClick = onClick) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Preview track", tint = Color.White) }
-    }
-}
-
-@Composable
-private fun Artwork(track: DemoTrack, modifier: Modifier = Modifier, large: Boolean = false) {
-    Box(modifier.clip(RoundedCornerShape(if (large) 22.dp else 15.dp)).background(Brush.linearGradient(listOf(track.color, Panel, Color(0xFF1A2C4A)))), contentAlignment = Alignment.Center) {
-        Text(track.mark, color = Color.White, fontSize = if (large) 43.sp else 26.sp, fontWeight = FontWeight.Light)
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, action: String?) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        if (action != null) Text(action, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun MiniPlayer(track: DemoTrack, playing: Boolean, onOpen: () -> Unit, onToggle: () -> Unit, onNext: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF182641), Panel))).clickable(onClick = onOpen).padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Artwork(track, Modifier.size(44.dp))
-        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-            Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
-            Text("Player preview", color = Muted, fontSize = 11.sp)
-        }
-        IconButton(onClick = onToggle) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Toggle preview") }
-        IconButton(onClick = onNext) { Icon(Icons.Rounded.SkipNext, contentDescription = "Next preview") }
-    }
-}
-
-@Composable
-private fun NowPlaying(track: DemoTrack, playing: Boolean, onBack: () -> Unit, onToggle: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit) {
-    var progress by remember(track.title) { mutableFloatStateOf(0.32f) }
-    Column(Modifier.fillMaxSize().background(Night).padding(horizontal = 24.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = "Back") }
-            Spacer(Modifier.weight(1f))
-            Text("NOW PLAYING", color = Muted, fontSize = 11.sp, letterSpacing = 2.sp)
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = {}) { Icon(Icons.Rounded.MoreHoriz, contentDescription = "More options") }
-        }
-        Spacer(Modifier.weight(1f))
-        Artwork(track, Modifier.fillMaxWidth().weight(1.5f), true)
-        Spacer(Modifier.height(26.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(track.title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Text(track.artist, color = Muted, fontSize = 14.sp)
-            }
-            IconButton(onClick = {}) { Icon(Icons.Rounded.FavoriteBorder, contentDescription = "Save track", tint = Cyan) }
-        }
-        Slider(value = progress, onValueChange = { progress = it }, modifier = Modifier.fillMaxWidth())
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("1:24", color = Muted, fontSize = 11.sp)
-            Text("4:08", color = Muted, fontSize = 11.sp)
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onPrevious, modifier = Modifier.size(54.dp)) { Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(32.dp)) }
-            Surface(shape = CircleShape, color = Blue, modifier = Modifier.size(72.dp).clickable(onClick = onToggle)) {
-                Box(contentAlignment = Alignment.Center) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Toggle preview", tint = Color.White, modifier = Modifier.size(36.dp)) }
-            }
-            IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) { Icon(Icons.Rounded.SkipNext, contentDescription = "Next", modifier = Modifier.size(32.dp)) }
-        }
-        Spacer(Modifier.weight(1f))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Icon(Icons.Rounded.FavoriteBorder, contentDescription = "Favorites", tint = Muted)
-            Icon(Icons.Rounded.QueueMusic, contentDescription = "Queue", tint = Muted)
-            Icon(Icons.Rounded.Album, contentDescription = "Album", tint = Muted)
-            Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = Muted)
         }
     }
 }
