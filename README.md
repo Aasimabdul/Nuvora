@@ -51,8 +51,8 @@ The APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub Action
 This is an early release. Verify search, playback, theme persistence, and downloads on a real Android device before relying on it. YouTube embedded playback requires network access and may be unavailable for videos whose owners disable embedding. Provider availability and playback can vary by track and network.
 
 
-## v0.3.5
-- Redesigned the bottom navigation as a floating, rounded minimal bar.
-- Added a compact floating now-playing bar with seek progress and playback controls.
-- Investigated official YouTube playback options. The YouTube API policies prohibit audio-only extraction and background playback through the API, so this release does not claim native/background YouTube Music audio playback.
-- YouTube's official embedded player remains limited to permitted in-app video playback; it does not satisfy a native audio-only player requirement. See the [YouTube developer policies](https://developers.google.com/youtube/terms/developer-policies-guide) and [embedded-player requirements](https://support.google.com/youtube/answer/171780?hl=en).
+## v0.3.6
+- Added a time-based greeting, mood-based search cards, recently played tracks, and horizontal music discovery cards.
+- Added Settings toggles to show or hide mood cards, recently played, and the horizontal carousel on Home.
+- Preserved existing music-source selection, themes, favourites, downloads, floating mini-player, and navigation.
+- YouTube remains limited to the official embedded player; native audio-only/background playback is not supported by the official YouTube API.
