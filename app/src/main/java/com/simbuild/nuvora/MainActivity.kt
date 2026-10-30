@@ -27,6 +27,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -120,6 +124,12 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val scope = rememberCoroutineScope()
 
     fun search(term: String) {
+        if (selectedProvider == "YouTube Music") {
+            tracks = emptyList()
+            loading = false
+            error = "Paste a YouTube or YouTube Music video link below to play it in Nuvora's official embedded player."
+            return
+        }
         if (selectedProvider != "Audius") {
             tracks = emptyList()
             loading = false
@@ -230,7 +240,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
                 }
             }
-            1 -> Column(Modifier.fillMaxSize().padding(insets)) {
+            1 -> if (selectedProvider == "YouTube Music") {
+                YouTubeEmbedScreen()
+            } else Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
                 SearchBar(query, { query = it }, { search(query) }, { search(query) })
                 StatusMessages(loading, error)
@@ -305,7 +317,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 Text(
                     when (selectedProvider) {
                         "Audius" -> "IN-APP PLAYBACK · Search and stream available Audius tracks inside Nuvora using Media3. Availability depends on creator settings."
-                        "YouTube Music" -> "EXTERNAL ONLY · Opens the official YouTube Music app or website. Audio-only extraction and background playback are not implemented."
+                        "YouTube Music" -> "IN-APP EMBEDDED VIDEO · Paste a YouTube/YouTube Music video link in Search to play it with the official YouTube embedded player. No audio extraction or background playback."
                         "JioSaavn" -> "EXTERNAL ONLY · Opens the official JioSaavn service. No authorized direct-stream integration is configured."
                         "Spotify" -> "EXTERNAL ONLY · Opens Spotify. Its Android SDK can control the official Spotify app; it does not expose Spotify audio streams to Nuvora."
                         "SoundCloud" -> "EXTERNAL ONLY · Opens SoundCloud. In-app playback requires approved API credentials and compliance with SoundCloud's playback and attribution rules."
@@ -372,6 +384,60 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             } ?: Column(Modifier.fillMaxSize().padding(insets).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text("Choose a track to start listening.")
                 Button(onClick = { tab = 0 }) { Text("Discover music") }
+            }
+        }
+    }
+}
+
+private fun extractYouTubeVideoId(input: String): String? {
+    val value = input.trim()
+    val pattern = Regex("""(?:youtu\.be/|(?:www\.|music\.)?youtube\.com/(?:watch\?v=|embed/|shorts/))([A-Za-z0-9_-]{11})|^([A-Za-z0-9_-]{11})$""")
+    val match = pattern.find(value) ?: return null
+    return match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() }
+        ?: match.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }
+}
+
+@Composable
+private fun YouTubeEmbedScreen() {
+    var videoUrl by remember { mutableStateOf("") }
+    var videoId by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("YouTube Music", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("Play an official YouTube video inside Nuvora. Find a song in YouTube Music, use Share → Copy link, then paste it here.", color = Muted, fontSize = 13.sp)
+        OutlinedTextField(
+            value = videoUrl,
+            onValueChange = { videoUrl = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("YouTube / YouTube Music link") },
+            placeholder = { Text("https://music.youtube.com/watch?v=…") },
+            singleLine = true
+        )
+        Button(
+            onClick = { videoId = extractYouTubeVideoId(videoUrl) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Icon(Icons.Rounded.PlayArrow, contentDescription = null); Text("  Play in Nuvora") }
+        if (videoId == null && videoUrl.isNotBlank()) {
+            Text("Enter a valid YouTube video link or 11-character video ID.", color = Color(0xFFFFA6A6), fontSize = 12.sp)
+        }
+        Text("Official embedded playback · Internet required · YouTube controls and ads may appear. Audio-only and background playback are not provided.", color = Muted, fontSize = 12.sp)
+        videoId?.let { id ->
+            key(id) {
+                AndroidView(
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                    factory = { context ->
+                        WebView(context).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.mediaPlaybackRequiresUserGesture = true
+                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                            webViewClient = WebViewClient()
+                            loadUrl(
+                                "https://www.youtube.com/embed/$id?playsinline=1",
+                                mapOf("Referer" to "https://github.com/Aasimabdul/Nuvora/")
+                            )
+                        }
+                    }
+                )
             }
         }
     }
