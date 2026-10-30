@@ -47,4 +47,4 @@ The APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub Action
 
 ## Testing note
 
-This is an early release. Verify search, playback, theme persistence, and downloads on a real Android device before relying on it. Provider availability and playback can vary by track and network.
+This is an early release. Verify search, playback, theme persistence, and downloads on a real Android device before relying on it. YouTube embedded playback requires network access and may be unavailable for videos whose owners disable embedding. Provider availability and playback can vary by track and network.
