@@ -789,61 +789,292 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
             2 -> Column(Modifier.fillMaxSize().padding(insets)) {
-                Text("Playlists", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
-                Text("Your saved tracks", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Your library", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        Text("Playlists, likes and listening history", color = Muted, fontSize = 12.sp)
+                    }
+                    Button(onClick = { showCreatePlaylist = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
+                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Create")
+                    }
+                }
+                if (selectedTrackIds.isNotEmpty()) {
+                    Surface(
+                        color = Blue.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, Blue.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 2.dp)
+                    ) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Cyan)
+                            Text("${selectedTrackIds.size} tracks selected", modifier = Modifier.weight(1f), color = Cyan)
+                            TextButton(onClick = { selectedTrackIds.clear() }) { Text("Clear") }
+                        }
+                    }
+                }
                 val saved = knownTracks.filter { it.id in favorites }
-                if (saved.isEmpty()) {
-                    Text("Search Audius or JioSaavn and tap the heart to save tracks here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp)) {
-                    items(saved, key = { it.id }) { track ->
-                        TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = favorites - track.id
-                            prefs.edit().putStringSet("favorite_ids", favorites).apply()
-                        }, true, { downloadTrack(context, track) })
+                val mostPlayed = knownTracks.filter { (playCounts[it.id] ?: 0) > 0 }
+                    .sortedByDescending { playCounts[it.id] ?: 0 }
+                LazyColumn(
+                    Modifier.fillMaxSize().weight(1f),
+                    contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Text("Liked songs", fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 4.dp))
                     }
-                }
-                Spacer(Modifier.height(16.dp))
-                Text("JioSaavn playlists", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = playlistQuery, onValueChange = { playlistQuery = it }, modifier = Modifier.weight(1f), label = { Text("Search playlists") }, singleLine = true)
-                    IconButton(onClick = {
-                        scope.launch {
-                            loading = true
-                            error = null
-                            try { saavnPlaylists = JioSaavnRepository.searchPlaylists(playlistQuery); if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found." }
-                            catch (e: Exception) { error = "Could not load JioSaavn playlists: ${e.message ?: "API unavailable"}" }
-                            finally { loading = false }
-                        }
-                    }) { Icon(Icons.Rounded.Search, contentDescription = "Search JioSaavn playlists") }
-                }
-                LazyColumn(Modifier.weight(1f, fill = false).padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(saavnPlaylists, key = { it.id }) { playlist ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable {
-                            selectedProvider = "JioSaavn"
-                            prefs.edit().putString("music_provider", "JioSaavn").apply()
-                            scope.launch {
-                                loading = true
-                                error = null
-                                try {
-                                    tracks = JioSaavnRepository.getPlaylistTracks(playlist.id)
-                                    tracks.forEach { track -> if (knownTracks.none { it.id == track.id }) knownTracks.add(track) }
-                                    query = playlist.title
-                                    tab = 1
-                                    if (tracks.isEmpty()) error = "This playlist did not return playable tracks."
-                                } catch (e: Exception) { error = "Could not load playlist: ${e.message ?: "API unavailable"}" }
-                                finally { loading = false }
-                            }
-                        }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Cover(playlist.artworkUrl, Modifier.size(54.dp))
-                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                                Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(playlist.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            }
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = "Load playlist", tint = Cyan)
+                    if (saved.isEmpty()) {
+                        item { Text("Use the heart on any result to keep it here.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) }
+                    } else {
+                        items(saved, key = { "liked-${it.id}" }) { track ->
+                            TrackRow(
+                                track, active?.id == track.id, { queueTracks = saved; play(track) },
+                                { toggleFavorite(track) }, true,
+                                { if (!track.id.startsWith("youtube-")) downloadTrack(context, track) },
+                                { toggleTrackSelection(track) }, track.id in selectedTrackIds
+                            )
                         }
                     }
+                    if (mostPlayed.isNotEmpty()) {
+                        item { Text("Most played", fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) }
+                        items(mostPlayed.take(10), key = { "mostplayed-${it.id}" }) { track ->
+                            TrackRow(
+                                track, active?.id == track.id, { queueTracks = mostPlayed; play(track) },
+                                { toggleFavorite(track) }, track.id in favorites,
+                                { if (!track.id.startsWith("youtube-")) downloadTrack(context, track) },
+                                { toggleTrackSelection(track) }, track.id in selectedTrackIds
+                            )
+                        }
+                    }
+                    item {
+                        Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("My playlists", fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text("${localPlaylists.size}", color = Muted, fontSize = 12.sp)
+                        }
+                    }
+                    if (localPlaylists.isEmpty()) {
+                        item {
+                            Text(
+                                "Create a playlist, then select tracks in Search with the playlist icon. You can make playlists from YouTube Music, Audius and JioSaavn results.",
+                                color = Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                    }
+                    items(localPlaylists, key = { "playlist-${it.id}" }) { playlist ->
+                        val playlistTracks = playlist.trackIds.mapNotNull { id -> knownTracks.firstOrNull { it.id == id } }
+                        Column(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)
+                                .border(BorderStroke(1.dp, Blue.copy(alpha = 0.13f)), RoundedCornerShape(18.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(shape = RoundedCornerShape(13.dp), color = Blue.copy(alpha = 0.16f), modifier = Modifier.size(44.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Rounded.QueueMusic, contentDescription = null, tint = Cyan, modifier = Modifier.size(23.dp))
+                                    }
+                                }
+                                Column(
+                                    Modifier.weight(1f).clickable {
+                                        expandedPlaylistId = if (expandedPlaylistId == playlist.id) null else playlist.id
+                                    }.padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(playlist.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${playlistTracks.size} tracks", color = Muted, fontSize = 12.sp)
+                                }
+                                IconButton(onClick = {
+                                    expandedPlaylistId = if (expandedPlaylistId == playlist.id) null else playlist.id
+                                }) {
+                                    Icon(
+                                        if (expandedPlaylistId == playlist.id) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                        contentDescription = "Expand playlist",
+                                        tint = Cyan
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    localPlaylists.removeAll { it.id == playlist.id }
+                                    prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
+                                    if (expandedPlaylistId == playlist.id) expandedPlaylistId = null
+                                }) { Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete playlist", tint = Muted) }
+                            }
+                            if (expandedPlaylistId == playlist.id) {
+                                HorizontalDivider(color = Muted.copy(alpha = 0.14f))
+                                if (selectedTrackIds.isNotEmpty()) {
+                                    TextButton(
+                                        onClick = {
+                                            val index = localPlaylists.indexOfFirst { it.id == playlist.id }
+                                            if (index >= 0) {
+                                                val old = localPlaylists[index]
+                                                localPlaylists[index] = old.copy(trackIds = (old.trackIds + selectedTrackIds).distinct())
+                                                prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
+                                            }
+                                            selectedTrackIds.clear()
+                                        },
+                                        modifier = Modifier.align(Alignment.End)
+                                    ) { Text("Add selected tracks", color = Cyan) }
+                                }
+                                if (playlistTracks.isEmpty()) {
+                                    Text("This playlist is empty. Search songs and select them, then tap Add selected tracks.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
+                                } else {
+                                    playlistTracks.forEach { track ->
+                                        TrackRow(
+                                            track, active?.id == track.id,
+                                            { queueTracks = playlistTracks; play(track) },
+                                            { toggleFavorite(track) }, track.id in favorites,
+                                            { if (!track.id.startsWith("youtube-")) downloadTrack(context, track) },
+                                            { toggleTrackSelection(track) }, track.id in selectedTrackIds
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Text("Streaming playlists", fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
+                            FilterChip(
+                                selected = playlistProvider == "YouTube Music",
+                                onClick = { playlistProvider = "YouTube Music"; youtubePlaylists = emptyList() },
+                                label = { Text("YouTube Music") },
+                                leadingIcon = { Icon(Icons.Rounded.MusicNote, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                            FilterChip(
+                                selected = playlistProvider == "JioSaavn",
+                                onClick = { playlistProvider = "JioSaavn"; saavnPlaylists = emptyList() },
+                                label = { Text("JioSaavn") },
+                                leadingIcon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = playlistQuery,
+                                onValueChange = { playlistQuery = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("Search playlist names") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = {
+                                    scope.launch {
+                                        loading = true; error = null
+                                        try {
+                                            if (playlistProvider == "YouTube Music") {
+                                                youtubePlaylists = YouTubeMusicPlaylistsRepository.searchPlaylists(playlistQuery)
+                                                if (youtubePlaylists.isEmpty()) error = "No YouTube Music playlists found. Try a different search."
+                                            } else {
+                                                saavnPlaylists = JioSaavnRepository.searchPlaylists(playlistQuery)
+                                                if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found."
+                                            }
+                                        } catch (e: Exception) {
+                                            error = "Playlist search failed. The provider's public endpoint may be unavailable."
+                                        } finally { loading = false }
+                                    }
+                                })
+                            )
+                            IconButton(onClick = {
+                                scope.launch {
+                                    loading = true; error = null
+                                    try {
+                                        if (playlistProvider == "YouTube Music") {
+                                            youtubePlaylists = YouTubeMusicPlaylistsRepository.searchPlaylists(playlistQuery)
+                                            if (youtubePlaylists.isEmpty()) error = "No YouTube Music playlists found. Try a different search."
+                                        } else {
+                                            saavnPlaylists = JioSaavnRepository.searchPlaylists(playlistQuery)
+                                            if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found."
+                                        }
+                                    } catch (e: Exception) {
+                                        error = "Playlist search failed. The provider's public endpoint may be unavailable."
+                                    } finally { loading = false }
+                                }
+                            }) { Icon(Icons.Rounded.Search, contentDescription = "Search playlists", tint = Cyan) }
+                        }
+                    }
+                    if (playlistProvider == "YouTube Music") {
+                        items(youtubePlaylists, key = { "ytplaylist-${it.id}" }) { playlist ->
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel)
+                                    .clickable {
+                                        scope.launch {
+                                            loading = true; error = null
+                                            try {
+                                                val imported = YouTubeMusicPlaylistsRepository.getPlaylistTracks(playlist.id)
+                                                if (imported.isEmpty()) {
+                                                    error = "This playlist did not return any public tracks."
+                                                } else {
+                                                    imported.forEach(::rememberTrack)
+                                                    val local = LocalPlaylist(
+                                                        id = "${System.currentTimeMillis()}-${localPlaylists.size}",
+                                                        name = playlist.title,
+                                                        trackIds = imported.map { it.id }
+                                                    )
+                                                    localPlaylists.add(0, local)
+                                                    prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
+                                                    queueTracks = imported
+                                                    expandedPlaylistId = local.id
+                                                    Toast.makeText(context, "Imported ${imported.size} tracks to My playlists", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } catch (e: Exception) {
+                                                error = "Couldn't load that YouTube Music playlist. The unofficial endpoint may have changed."
+                                            } finally { loading = false }
+                                        }
+                                    }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Cover(playlist.artworkUrl, Modifier.size(54.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(playlist.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("Tap to import into Nuvora", color = Cyan, fontSize = 11.sp)
+                                }
+                                Icon(Icons.Rounded.DownloadDone, contentDescription = "Import playlist", tint = Cyan)
+                            }
+                        }
+                    } else {
+                        items(saavnPlaylists, key = { "saavnplaylist-${it.id}" }) { playlist ->
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel)
+                                    .clickable {
+                                        scope.launch {
+                                            loading = true; error = null
+                                            try {
+                                                val imported = JioSaavnRepository.getPlaylistTracks(playlist.id)
+                                                if (imported.isEmpty()) error = "This JioSaavn playlist did not return playable tracks."
+                                                else {
+                                                    imported.forEach(::rememberTrack)
+                                                    val local = LocalPlaylist(
+                                                        id = "${System.currentTimeMillis()}-${localPlaylists.size}",
+                                                        name = playlist.title,
+                                                        trackIds = imported.map { it.id }
+                                                    )
+                                                    localPlaylists.add(0, local)
+                                                    prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
+                                                    queueTracks = imported
+                                                    expandedPlaylistId = local.id
+                                                }
+                                            } catch (e: Exception) {
+                                                error = "Couldn't load this JioSaavn playlist. Its community API may have changed."
+                                            } finally { loading = false }
+                                        }
+                                    }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Cover(playlist.artworkUrl, Modifier.size(54.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(playlist.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("Tap to import into Nuvora", color = Cyan, fontSize = 11.sp)
+                                }
+                                Icon(Icons.Rounded.DownloadDone, contentDescription = "Import playlist", tint = Cyan)
+                            }
+                        }
+                    }
+                    if (loading || error != null) item { StatusMessages(loading, error) }
+                    item { Spacer(Modifier.height(18.dp)) }
                 }
-                Text("YouTube Music song search and best-effort in-app audio playback are available from Home or Search. YouTube Music playlists are not implemented yet.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
             3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
