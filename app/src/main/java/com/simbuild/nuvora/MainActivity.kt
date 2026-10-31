@@ -128,6 +128,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
+    var youtubeResults by remember { mutableStateOf<List<YouTubeMusicResult>>(emptyList()) }
+    var selectedYouTubeLink by remember { mutableStateOf(sharedYouTubeLink) }
     val recentlyPlayed = remember { mutableStateListOf<MusicTrack>() }
     var favorites by remember { mutableStateOf<Set<String>>(emptySet()) }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
@@ -150,8 +152,25 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     fun search(term: String) {
         if (selectedProvider == "YouTube Music") {
             tracks = emptyList()
-            loading = false
-            error = "Paste a YouTube or YouTube Music video link below to play it in Nuvora's official embedded player."
+            if (term.isBlank()) {
+                youtubeResults = emptyList()
+                loading = false
+                error = "Enter a song or artist to search YouTube Music."
+                return
+            }
+            loading = true
+            error = null
+            scope.launch {
+                try {
+                    youtubeResults = YouTubeMusicRepository.search(term)
+                    if (youtubeResults.isEmpty()) error = "No YouTube Music results found. Try another search."
+                } catch (_: Exception) {
+                    youtubeResults = emptyList()
+                    error = "YouTube Music catalogue search failed. The unofficial search endpoint may be unavailable; try again later."
+                } finally {
+                    loading = false
+                }
+            }
             return
         }
         if (selectedProvider != "Audius" && selectedProvider != "JioSaavn") {
@@ -202,6 +221,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     }
 
     LaunchedEffect(sharedYouTubeLink) {
+        selectedYouTubeLink = sharedYouTubeLink
         if (!sharedYouTubeLink.isNullOrBlank() && extractYouTubeVideoId(sharedYouTubeLink) != null) {
             selectedProvider = "YouTube Music"
             prefs.edit().putString("music_provider", selectedProvider).apply()
@@ -436,7 +456,18 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
             1 -> if (selectedProvider == "YouTube Music") {
-                Column(Modifier.fillMaxSize().padding(insets)) { YouTubeEmbedScreen(sharedYouTubeLink) }
+                Column(Modifier.fillMaxSize().padding(insets)) {
+                    YouTubeEmbedScreen(
+                        selectedYouTubeLink = selectedYouTubeLink,
+                        query = query,
+                        onQueryChange = { query = it },
+                        results = youtubeResults,
+                        loading = loading,
+                        error = error,
+                        onSearch = { search(query) },
+                        onSelectResult = { result -> selectedYouTubeLink = result.watchUrl }
+                    )
+                }
             } else Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
                 SearchBar(query, { query = it }, { search(query) }, { search(query) })
@@ -626,24 +657,70 @@ private fun extractYouTubeVideoId(input: String): String? {
 }
 
 @Composable
-private fun YouTubeEmbedScreen(sharedYouTubeLink: String? = null) {
-    var videoUrl by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink.orEmpty()) }
-    var videoId by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink?.let { extractYouTubeVideoId(it) }) }
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun YouTubeEmbedScreen(
+    selectedYouTubeLink: String?,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    results: List<YouTubeMusicResult>,
+    loading: Boolean,
+    error: String?,
+    onSearch: () -> Unit,
+    onSelectResult: (YouTubeMusicResult) -> Unit
+) {
+    var videoUrl by remember(selectedYouTubeLink) { mutableStateOf(selectedYouTubeLink.orEmpty()) }
+    var videoId by remember(selectedYouTubeLink) { mutableStateOf(selectedYouTubeLink?.let { extractYouTubeVideoId(it) }) }
+    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("YouTube Music", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Play an official YouTube video inside Nuvora. Find a song in YouTube Music, use Share → Copy link, then paste it here.", color = Muted, fontSize = 13.sp)
+        Text("Search the catalogue inside Nuvora, then play a selected result using YouTube's official embedded player.", color = Muted, fontSize = 13.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                label = { Text("Song or artist") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() })
+            )
+            IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, contentDescription = "Search YouTube Music") }
+        }
+        if (loading) Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Text("Searching YouTube Music…", color = Muted, modifier = Modifier.padding(start = 8.dp))
+        }
+        if (error != null) Text(error, color = Color(0xFFFFA6A6), fontSize = 12.sp)
+        LazyColumn(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(results, key = { it.videoId }) { result ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .background(Panel).clickable { onSelectResult(result) }.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Cover(result.artworkUrl, Modifier.size(54.dp))
+                    Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                        Text(result.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(result.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (result.durationLabel.isNotBlank()) Text(result.durationLabel, color = Cyan, fontSize = 10.sp)
+                    }
+                    Icon(Icons.Rounded.PlayArrow, contentDescription = "Play ${result.title}", tint = Cyan)
+                }
+            }
+        }
         OutlinedTextField(
             value = videoUrl,
             onValueChange = { videoUrl = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("YouTube / YouTube Music link") },
+            label = { Text("Or paste a YouTube video link") },
             placeholder = { Text("https://music.youtube.com/watch?v=…") },
             singleLine = true
         )
         Button(
             onClick = { videoId = extractYouTubeVideoId(videoUrl) },
             modifier = Modifier.fillMaxWidth()
-        ) { Icon(Icons.Rounded.PlayArrow, contentDescription = null); Text("  Play in Nuvora") }
+        ) { Icon(Icons.Rounded.PlayArrow, contentDescription = null); Text("  Play official video") }
         if (videoId == null && videoUrl.isNotBlank()) {
             Text("Enter a valid YouTube video link or 11-character video ID.", color = Color(0xFFFFA6A6), fontSize = 12.sp)
         }
