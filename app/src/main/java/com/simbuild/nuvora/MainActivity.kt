@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +43,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Night = Color(0xFF080D1A)
 private val Panel = Color(0xFF121B2E)
@@ -57,6 +60,104 @@ private val themes = listOf(
     NuvoraTheme("Forest", Color(0xFF071510), Color(0xFF10251D), Color(0xFF48C78E), Color(0xFF9DE8C0)),
     NuvoraTheme("Light", Color(0xFFF4F7FC), Color(0xFFFFFFFF), Color(0xFF245DCE), Color(0xFF007F91))
 )
+
+private data class LocalPlaylist(val id: String, val name: String, val trackIds: List<String>)
+
+private fun YouTubeMusicResult.toMusicTrack(): MusicTrack {
+    val duration = durationLabel.split(":").mapNotNull { it.toIntOrNull() }
+        .fold(0) { total, part -> total * 60 + part }
+    return MusicTrack(
+        id = "youtube-$videoId",
+        title = title,
+        artist = artist,
+        artworkUrl = artworkUrl,
+        durationSeconds = duration,
+        permalink = watchUrl,
+        // Metadata only: resolve a fresh public stream when playback starts.
+        streamUrl = watchUrl
+    )
+}
+
+private fun encodeMusicTracks(tracks: List<MusicTrack>): String = JSONArray().apply {
+    tracks.forEach { track ->
+        put(JSONObject()
+            .put("id", track.id)
+            .put("title", track.title)
+            .put("artist", track.artist)
+            .put("artworkUrl", track.artworkUrl ?: JSONObject.NULL)
+            .put("durationSeconds", track.durationSeconds)
+            .put("permalink", track.permalink)
+            .put("streamUrl", track.streamUrl))
+    }
+}.toString()
+
+private fun decodeMusicTracks(raw: String?): List<MusicTrack> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(raw)
+        buildList {
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val id = item.optString("id").takeIf { it.isNotBlank() && it != "null" } ?: continue
+                add(MusicTrack(
+                    id = id,
+                    title = item.optString("title", "Untitled track"),
+                    artist = item.optString("artist", "Unknown artist"),
+                    artworkUrl = item.optString("artworkUrl").takeIf { it.startsWith("https://") },
+                    durationSeconds = item.optInt("durationSeconds", 0),
+                    permalink = item.optString("permalink", ""),
+                    streamUrl = item.optString("streamUrl", "")
+                ))
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
+private fun encodePlaylists(playlists: List<LocalPlaylist>): String = JSONArray().apply {
+    playlists.forEach { playlist ->
+        put(JSONObject()
+            .put("id", playlist.id)
+            .put("name", playlist.name)
+            .put("trackIds", JSONArray().apply { playlist.trackIds.forEach(::put) }))
+    }
+}.toString()
+
+private fun decodePlaylists(raw: String?): List<LocalPlaylist> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(raw)
+        buildList {
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+                val name = item.optString("name").takeIf { it.isNotBlank() } ?: continue
+                val ids = item.optJSONArray("trackIds")
+                val trackIds = if (ids == null) emptyList() else
+                    (0 until ids.length()).mapNotNull { ids.optString(it).takeIf(String::isNotBlank) }
+                add(LocalPlaylist(id, name, trackIds))
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
+private fun decodePlayCounts(raw: String?): Map<String, Int> {
+    if (raw.isNullOrBlank()) return emptyMap()
+    return runCatching {
+        val json = JSONObject(raw)
+        buildMap {
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                put(key, json.optInt(key, 0))
+            }
+        }
+    }.getOrDefault(emptyMap())
+}
+
+private fun formatTime(milliseconds: Long): String {
+    val seconds = (milliseconds.coerceAtLeast(0L) / 1000L).toInt()
+    return "%d:%02d".format(seconds / 60, seconds % 60)
+}
 
 private fun downloadTrack(context: Context, track: MusicTrack) {
     try {
@@ -90,6 +191,12 @@ class MainActivity : ComponentActivity() {
                         this,
                         DefaultHttpDataSource.Factory()
                             .setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
+                            .setDefaultRequestProperties(mapOf(
+                                "Accept" to "*/*",
+                                "Accept-Language" to "en-US,en;q=0.9",
+                                "Referer" to "https://www.youtube.com/",
+                                "Origin" to "https://www.youtube.com"
+                            ))
                             .setAllowCrossProtocolRedirects(true)
                     )
                 )
@@ -151,11 +258,42 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var playlistQuery by remember { mutableStateOf("") }
     var saavnPlaylists by remember { mutableStateOf<List<JioSaavnPlaylist>>(emptyList()) }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
-    val knownTracks = remember { mutableStateListOf<MusicTrack>() }
+    val knownTracks = remember {
+        mutableStateListOf<MusicTrack>().apply {
+            addAll(decodeMusicTracks(prefs.getString("known_tracks", null)))
+        }
+    }
     var youtubeResults by remember { mutableStateOf<List<YouTubeMusicResult>>(emptyList()) }
     var selectedYouTubeLink by remember { mutableStateOf(sharedYouTubeLink) }
-    val recentlyPlayed = remember { mutableStateListOf<MusicTrack>() }
-    var favorites by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val recentlyPlayed = remember {
+        mutableStateListOf<MusicTrack>().apply {
+            val byId = knownTracks.associateBy { it.id }
+            prefs.getString("recent_track_ids", "").orEmpty().split("|")
+                .filter { it.isNotBlank() }.mapNotNull { byId[it] }.take(12).forEach(::add)
+        }
+    }
+    var favorites by remember {
+        mutableStateOf(prefs.getStringSet("favorite_ids", emptySet()).orEmpty().toSet())
+    }
+    val localPlaylists = remember {
+        mutableStateListOf<LocalPlaylist>().apply {
+            addAll(decodePlaylists(prefs.getString("local_playlists", null)))
+        }
+    }
+    val selectedTrackIds = remember { mutableStateListOf<String>() }
+    var showCreatePlaylist by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    var expandedPlaylistId by remember { mutableStateOf<String?>(null) }
+    var playlistProvider by remember { mutableStateOf("YouTube Music") }
+    var youtubePlaylists by remember { mutableStateOf<List<YouTubeMusicPlaylist>>(emptyList()) }
+    val playCounts = remember {
+        mutableStateMapOf<String, Int>().apply {
+            putAll(decodePlayCounts(prefs.getString("play_counts", null)))
+        }
+    }
+    var queueTracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
+    var shuffleEnabled by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
     var playing by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -173,6 +311,40 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         }
     }
 
+    fun rememberTrack(track: MusicTrack) {
+        val index = knownTracks.indexOfFirst { it.id == track.id }
+        if (index >= 0) knownTracks[index] = track else knownTracks.add(track)
+        prefs.edit().putString("known_tracks", encodeMusicTracks(knownTracks)).apply()
+    }
+
+    fun toggleFavorite(track: MusicTrack) {
+        rememberTrack(track)
+        favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+        prefs.edit().putStringSet("favorite_ids", favorites).apply()
+    }
+
+    fun toggleTrackSelection(track: MusicTrack) {
+        rememberTrack(track)
+        if (track.id in selectedTrackIds) selectedTrackIds.remove(track.id) else selectedTrackIds.add(track.id)
+    }
+
+    fun createLocalPlaylist(name: String) {
+        val cleanName = name.trim()
+        if (cleanName.isBlank()) return
+        val ids = selectedTrackIds.distinct().filter { id -> knownTracks.any { it.id == id } }
+        val playlist = LocalPlaylist(
+            id = "${System.currentTimeMillis()}-${localPlaylists.size}",
+            name = cleanName,
+            trackIds = ids
+        )
+        localPlaylists.add(0, playlist)
+        prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
+        selectedTrackIds.clear()
+        expandedPlaylistId = playlist.id
+        newPlaylistName = ""
+        showCreatePlaylist = false
+    }
+
     fun search(term: String) {
         if (selectedProvider == "YouTube Music") {
             tracks = emptyList()
@@ -187,6 +359,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             scope.launch {
                 try {
                     youtubeResults = YouTubeMusicRepository.search(term)
+                    queueTracks = youtubeResults.map { it.toMusicTrack() }
+                    queueTracks.forEach(::rememberTrack)
                     error = if (youtubeResults.isEmpty()) "No YouTube Music results found." else null
                 } catch (_: Exception) {
                     youtubeResults = emptyList()
@@ -209,7 +383,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         scope.launch {
             try {
                 tracks = if (selectedProvider == "JioSaavn") JioSaavnRepository.searchTracks(term) else AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
-                tracks.forEach { track -> if (knownTracks.none { it.id == track.id }) knownTracks.add(track) }
+                queueTracks = tracks
+                tracks.forEach(::rememberTrack)
                 if (tracks.isEmpty()) error = "No playable tracks found. Try another search."
             } catch (e: Exception) {
                 error = "Could not load music. Check your internet and try again."
@@ -223,7 +398,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayerError(error: PlaybackException) {
-                playerError = "Playback failed (${error.errorCodeName}): ${error.message ?: "stream unavailable"}"
+                playerError = "Playback failed (${error.errorCodeName}). The source may have expired or refused the request; try again or choose another track."
+                playing = false
                 Toast.makeText(context, playerError, Toast.LENGTH_LONG).show()
             }
         }
@@ -243,40 +419,113 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     LaunchedEffect(Unit) { search("electronic chill") }
 
     fun play(track: MusicTrack) {
+        rememberTrack(track)
         active = track
         recentlyPlayed.removeAll { it.id == track.id }
         recentlyPlayed.add(0, track)
         while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
+        prefs.edit().putString("recent_track_ids", recentlyPlayed.joinToString("|") { it.id }).apply()
+        playCounts[track.id] = (playCounts[track.id] ?: 0) + 1
+        val countsJson = JSONObject().apply { playCounts.forEach { (id, count) -> put(id, count) } }
+        prefs.edit().putString("play_counts", countsJson.toString()).apply()
         playerError = null
-        player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(track.streamUrl).build())
-        player.prepare()
-        player.play()
+        player.repeatMode = repeatMode
+        player.shuffleModeEnabled = shuffleEnabled
+
+        if (track.id.startsWith("youtube-")) {
+            loading = true
+            scope.launch {
+                try {
+                    val videoId = track.id.removePrefix("youtube-")
+                    val streamUrl = YouTubeMusicPlaybackRepository.resolveAudioStream(videoId)
+                    player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(streamUrl).build())
+                    player.prepare()
+                    player.play()
+                } catch (e: Exception) {
+                    playerError = "Couldn't open this stream. YouTube may have blocked the request or the stream may have expired. Try another track or check your connection."
+                    playing = false
+                } finally {
+                    loading = false
+                }
+            }
+        } else {
+            val queue = queueTracks.filter { !it.id.startsWith("youtube-") && it.streamUrl.startsWith("https://") }
+            val startIndex = queue.indexOfFirst { it.id == track.id }
+            if (queue.size > 1 && startIndex >= 0) {
+                player.setMediaItems(queue.map { item ->
+                    MediaItem.Builder().setMediaId(item.id).setUri(item.streamUrl).build()
+                }, startIndex, 0L)
+            } else {
+                player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(track.streamUrl).build())
+            }
+            player.prepare()
+            player.play()
+        }
     }
 
     fun playYouTubeResult(result: YouTubeMusicResult) {
-        loading = true
+        val track = result.toMusicTrack()
+        rememberTrack(track)
+        if (youtubeResults.isNotEmpty()) queueTracks = youtubeResults.map { it.toMusicTrack() }
+        play(track)
+    }
+
+    fun skipNext() {
+        val current = active ?: return
+        if (repeatMode == Player.REPEAT_MODE_ONE) {
+            play(current)
+            return
+        }
+        val queue = queueTracks.ifEmpty { listOf(current) }
+        val index = queue.indexOfFirst { it.id == current.id }
+        val next = if (shuffleEnabled && queue.size > 1) {
+            queue.filterNot { it.id == current.id }.random()
+        } else if (index in queue.indices && index < queue.lastIndex) {
+            queue[index + 1]
+        } else if (repeatMode == Player.REPEAT_MODE_ALL && queue.isNotEmpty()) {
+            queue.first()
+        } else null
+        if (next != null) play(next)
+    }
+
+    fun skipPrevious() {
+        val current = active ?: return
+        if (player.currentPosition > 4_000L) {
+            player.seekTo(0L)
+            return
+        }
+        val queue = queueTracks.ifEmpty { listOf(current) }
+        val index = queue.indexOfFirst { it.id == current.id }
+        val previous = if (index > 0) queue[index - 1]
+            else if (repeatMode == Player.REPEAT_MODE_ALL && queue.isNotEmpty()) queue.last()
+            else null
+        if (previous != null) play(previous) else player.seekTo(0L)
+    }
+
+    fun selectProvider(provider: String) {
+        selectedProvider = provider
+        prefs.edit().putString("music_provider", provider).apply()
+        showProviders = false
         error = null
-        scope.launch {
-            try {
-                val streamUrl = YouTubeMusicPlaybackRepository.resolveAudioStream(result.videoId)
-                val durationSeconds = result.durationLabel.split(":")
-                    .mapNotNull { it.toIntOrNull() }
-                    .fold(0) { total, part -> total * 60 + part }
-                val track = MusicTrack(
-                    id = "youtube-" + result.videoId,
-                    title = result.title,
-                    artist = result.artist,
-                    artworkUrl = result.artworkUrl,
-                    durationSeconds = durationSeconds,
-                    permalink = result.watchUrl,
-                    streamUrl = streamUrl
-                )
-                if (knownTracks.none { it.id == track.id }) knownTracks.add(track)
-                play(track)
-            } catch (e: Exception) {
-                error = "Couldn't resolve a playable stream for this YouTube Music result. Try another track; it may be unavailable or YouTube may have changed its stream format."
-            } finally {
-                loading = false
+        tracks = emptyList()
+        youtubeResults = emptyList()
+        when (provider) {
+            "YouTube Music" -> { tab = 1; search(query.ifBlank { "popular music" }) }
+            "Audius", "JioSaavn" -> { tab = 1; search(query.ifBlank { "electronic chill" }) }
+            else -> {
+                val encoded = Uri.encode(query.ifBlank { "music" })
+                val url = when (provider) {
+                    "Spotify" -> "https://open.spotify.com/search/$encoded"
+                    "SoundCloud" -> "https://soundcloud.com/search?q=$encoded"
+                    "Bandcamp" -> "https://bandcamp.com/search?q=$encoded"
+                    else -> null
+                }
+                if (url != null) try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Could not open $provider", Toast.LENGTH_SHORT).show()
+                }
+                error = "$provider opens through its official app or website."
             }
         }
     }
