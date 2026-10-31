@@ -162,6 +162,27 @@ private fun formatTime(milliseconds: Long): String {
     return "%d:%02d".format(seconds / 60, seconds % 60)
 }
 
+private fun explainPlaybackFailure(error: PlaybackException): String {
+    val causes = generateSequence(error as Throwable?) { it.cause }
+        .take(5)
+        .mapNotNull { throwable ->
+            throwable.message?.takeIf { it.isNotBlank() }
+                ?: throwable.javaClass.simpleName.takeIf { it.isNotBlank() }
+        }
+        .distinct()
+        .joinToString(" → ")
+    return when {
+        causes.contains("UnknownHostException", ignoreCase = true) ->
+            "Could not resolve the audio host. Check mobile data/Wi-Fi or private DNS, then retry so Nuvora can fetch a fresh stream."
+        causes.contains("SocketTimeoutException", ignoreCase = true) ->
+            "The audio server timed out. Check your connection and retry."
+        causes.contains("403", ignoreCase = true) || causes.contains("404", ignoreCase = true) ->
+            "The stream URL was refused or expired. Retry to request a fresh stream, or open the track in YouTube Music."
+        else -> "Playback failed (${error.errorCodeName}). " +
+            causes.takeIf { it.isNotBlank() }?.take(220).orEmpty()
+    }
+}
+
 private fun downloadTrack(context: Context, track: MusicTrack) {
     try {
         val safeTitle = track.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(70).ifBlank { "Nuvora track" }
@@ -196,9 +217,7 @@ class MainActivity : ComponentActivity() {
                             .setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
                             .setDefaultRequestProperties(mapOf(
                                 "Accept" to "*/*",
-                                "Accept-Language" to "en-US,en;q=0.9",
-                                "Referer" to "https://www.youtube.com/",
-                                "Origin" to "https://www.youtube.com"
+                                "Accept-Language" to "en-US,en;q=0.9"
                             ))
                             .setAllowCrossProtocolRedirects(true)
                     )
@@ -412,7 +431,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayerError(error: PlaybackException) {
-                playerError = "Playback failed (${error.errorCodeName}). The source may have expired or refused the request; try again or choose another track."
+                playerError = explainPlaybackFailure(error)
                 playing = false
                 Toast.makeText(context, playerError, Toast.LENGTH_LONG).show()
             }
@@ -1255,7 +1274,18 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.Start) {
                                 Text("Playback couldn't start", color = Color(0xFFFFA6A0), fontWeight = FontWeight.SemiBold)
                                 Text(playerError!!, color = Muted, fontSize = 12.sp)
-                                TextButton(onClick = { play(track) }) { Text("Retry stream", color = Cyan) }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { play(track) }) { Text("Retry stream", color = Cyan) }
+                                    if (track.id.startsWith("youtube-")) {
+                                        TextButton(onClick = {
+                                            runCatching {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(track.permalink)))
+                                            }.onFailure {
+                                                Toast.makeText(context, "Could not open YouTube Music", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }) { Text("Open YouTube Music", color = Muted) }
+                                    }
+                                }
                             }
                         }
                     }
