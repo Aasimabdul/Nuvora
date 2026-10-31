@@ -10,6 +10,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -1179,6 +1182,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 Column(
                     Modifier.fillMaxSize().padding(insets)
                         .background(Brush.verticalGradient(listOf(Night, Color(0xFF111A31), Night)))
+                        .verticalScroll(rememberScrollState())
                         .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -1195,13 +1199,13 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                 contentDescription = "Favourite", tint = if (track.id in favorites) Cyan else Muted)
                         }
                     }
-                    Spacer(Modifier.weight(0.7f))
+                    Spacer(Modifier.height(14.dp))
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         color = Panel,
                         border = BorderStroke(1.dp, Blue.copy(alpha = 0.22f)),
                         shadowElevation = 18.dp,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(0.96f)
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1.02f).heightIn(max = 310.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Cover(track.artworkUrl, Modifier.fillMaxSize())
@@ -1300,7 +1304,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         Text(if (sleepTimerMinutes > 0) "Sleep timer: $sleepTimerMinutes min" else "Sleep timer")
                     }
                     Text("${queueTracks.size.coerceAtLeast(if (active == null) 0 else 1)} tracks in queue", color = Muted.copy(alpha = 0.8f), fontSize = 10.sp)
-                    Spacer(Modifier.weight(0.7f))
+                    Spacer(Modifier.height(14.dp))
                 }
             } ?: Column(Modifier.fillMaxSize().padding(insets).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text("Choose a track to start listening.")
