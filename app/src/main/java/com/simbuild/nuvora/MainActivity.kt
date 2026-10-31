@@ -239,7 +239,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val initialProvider = if (!prefs.getBoolean("default_provider_migrated_v041", false)) {
             prefs.edit()
                 .putString("music_provider", "YouTube Music")
-                .putBoolean("default_provider_migrated_v040", true)
+                .putBoolean("default_provider_migrated_v041", true)
                 .apply()
             "YouTube Music"
         } else {
@@ -294,6 +294,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var queueTracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
     var shuffleEnabled by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+    var sleepTimerMinutes by remember { mutableIntStateOf(0) }
+    var showSleepTimer by remember { mutableStateOf(false) }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
     var playing by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -308,6 +310,15 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             positionMs = player.currentPosition.coerceAtLeast(0L)
             durationMs = player.duration.takeIf { it > 0L } ?: 0L
             kotlinx.coroutines.delay(500)
+        }
+    }
+
+    LaunchedEffect(sleepTimerMinutes) {
+        if (sleepTimerMinutes > 0) {
+            kotlinx.coroutines.delay(sleepTimerMinutes * 60_000L)
+            player.pause()
+            sleepTimerMinutes = 0
+            Toast.makeText(context, "Sleep timer finished", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -510,8 +521,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         tracks = emptyList()
         youtubeResults = emptyList()
         when (provider) {
-            "YouTube Music" -> { tab = 1; search(query.ifBlank { "popular music" }) }
-            "Audius", "JioSaavn" -> { tab = 1; search(query.ifBlank { "electronic chill" }) }
+            "YouTube Music" -> { search(query.ifBlank { "popular music" }) }
+            "Audius", "JioSaavn" -> { search(query.ifBlank { "electronic chill" }) }
             else -> {
                 val encoded = Uri.encode(query.ifBlank { "music" })
                 val url = when (provider) {
@@ -1283,6 +1294,12 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         },
                         color = Muted, fontSize = 11.sp
                     )
+                    TextButton(onClick = { showSleepTimer = true }) {
+                        Icon(Icons.Rounded.Timer, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (sleepTimerMinutes > 0) "Sleep timer: $sleepTimerMinutes min" else "Sleep timer")
+                    }
+                    Text("${queueTracks.size.coerceAtLeast(if (active == null) 0 else 1)} tracks in queue", color = Muted.copy(alpha = 0.8f), fontSize = 10.sp)
                     Spacer(Modifier.weight(0.7f))
                 }
             } ?: Column(Modifier.fillMaxSize().padding(insets).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -1351,6 +1368,33 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
         }
+    }
+    if (showSleepTimer) {
+        AlertDialog(
+            onDismissRequest = { showSleepTimer = false },
+            containerColor = Panel,
+            title = { Text("Sleep timer", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Pause playback automatically after:", color = Muted, fontSize = 13.sp)
+                    listOf(15, 30, 45, 60).forEach { minutes ->
+                        Surface(
+                            color = if (sleepTimerMinutes == minutes) Blue.copy(alpha = 0.18f) else Panel,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, if (sleepTimerMinutes == minutes) Cyan.copy(alpha = 0.6f) else Muted.copy(alpha = 0.15f)),
+                            modifier = Modifier.fillMaxWidth().clickable { sleepTimerMinutes = minutes; showSleepTimer = false }
+                        ) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("$minutes minutes", modifier = Modifier.weight(1f))
+                                if (sleepTimerMinutes == minutes) Icon(Icons.Rounded.Check, contentDescription = null, tint = Cyan)
+                            }
+                        }
+                    }
+                    TextButton(onClick = { sleepTimerMinutes = 0; showSleepTimer = false }) { Text("Cancel active timer") }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSleepTimer = false }) { Text("Done") }
+        )
     }
     if (showCreatePlaylist) {
         AlertDialog(
