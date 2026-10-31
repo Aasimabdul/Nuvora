@@ -118,7 +118,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
     var editingSource by remember { mutableStateOf(sourceUrl) }
-    var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius") ?: "Audius") }
+    var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius")?.takeUnless { it == "YouTube Music" } ?: "Audius") }
     var showProviders by remember { mutableStateOf(false) }
     var showThemes by remember { mutableStateOf(false) }
     var showMoodSection by remember { mutableStateOf(prefs.getBoolean("home_moods", true)) }
@@ -163,7 +163,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             scope.launch {
                 try {
                     youtubeResults = YouTubeMusicRepository.search(term)
-                    if (youtubeResults.isEmpty()) error = "No YouTube Music results found. Try another search."
+                    error = if (youtubeResults.isEmpty()) "No YouTube Music results found."
+                        else "YouTube Music results are catalogue-only. Its official API does not provide native audio playback; choose Audius or JioSaavn to listen inside Nuvora."
                 } catch (_: Exception) {
                     youtubeResults = emptyList()
                     error = "YouTube Music catalogue search failed. The unofficial search endpoint may be unavailable; try again later."
@@ -175,24 +176,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         }
         if (selectedProvider != "Audius" && selectedProvider != "JioSaavn") {
             tracks = emptyList()
+            youtubeResults = emptyList()
             loading = false
-            error = "$selectedProvider is an external handoff in this release; Nuvora cannot play this provider's streams directly."
-            val encoded = Uri.encode(term.ifBlank { "music" })
-            val targetUrl = when (selectedProvider) {
-                "YouTube Music" -> "https://music.youtube.com/search?q=$encoded"
-                "JioSaavn" -> "https://www.jiosaavn.com/search/$encoded"
-                "Spotify" -> "https://open.spotify.com/search/$encoded"
-                "SoundCloud" -> "https://soundcloud.com/search?q=$encoded"
-                "Bandcamp" -> "https://bandcamp.com/search?q=$encoded"
-                else -> null
-            }
-            if (targetUrl != null) {
-                try {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
-                } catch (_: Exception) {
-                    Toast.makeText(context, "Could not open $selectedProvider", Toast.LENGTH_SHORT).show()
-                }
-            }
+            error = "$selectedProvider does not provide native audio playback in this build. Choose Audius or JioSaavn."
             return
         }
         loading = true
@@ -213,7 +199,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayerError(error: PlaybackException) {
-                playerError = "This track could not play. Try another track."
+                playerError = "Playback failed (${error.errorCodeName}). The stream may be unavailable or blocked. Try another track/source."
             }
         }
         player.addListener(listener)
@@ -237,7 +223,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         recentlyPlayed.add(0, track)
         while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
         playerError = null
-        player.setMediaItem(MediaItem.fromUri(track.streamUrl))
+        player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(track.streamUrl).build())
         player.prepare()
         player.play()
     }
