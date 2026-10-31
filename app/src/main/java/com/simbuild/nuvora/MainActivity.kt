@@ -197,7 +197,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayerError(error: PlaybackException) {
-                playerError = "Playback failed (${error.errorCodeName}). The stream may be unavailable or blocked. Try another track/source."
+                playerError = "Playback failed (${error.errorCodeName}): ${error.message ?: "stream unavailable"}"
+                Toast.makeText(context, playerError, Toast.LENGTH_LONG).show()
             }
         }
         player.addListener(listener)
@@ -433,7 +434,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                            favorites = (if (track.id in favorites) favorites - track.id else favorites + track.id).also { prefs.edit().putStringSet("favorite_ids", it).apply() }
                         }, track.id in favorites, { downloadTrack(context, track) })
                     }
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
