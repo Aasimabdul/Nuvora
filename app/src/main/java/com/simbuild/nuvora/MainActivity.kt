@@ -154,7 +154,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             error = "Paste a YouTube or YouTube Music video link below to play it in Nuvora's official embedded player."
             return
         }
-        if (selectedProvider != "Audius") {
+        if (selectedProvider != "Audius" && selectedProvider != "JioSaavn") {
             tracks = emptyList()
             loading = false
             error = "$selectedProvider is an external handoff in this release; Nuvora cannot play this provider's streams directly."
@@ -180,7 +180,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         error = null
         scope.launch {
             try {
-                tracks = AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
+                tracks = if (selectedProvider == "JioSaavn") JioSaavnRepository.searchTracks(term) else AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
                 if (tracks.isEmpty()) error = "No tracks found. Try another search."
             } catch (e: Exception) {
                 error = "Could not load music. Check your internet and try again."
@@ -325,7 +325,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
                             providers.forEach { provider ->
                                 DropdownMenuItem(
-                                    text = { Text(provider + if (provider == "Audius") " · In-app" else if (provider == "YouTube Music") " · Embedded" else " · Official app") },
+                                    text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app" else if (provider == "YouTube Music") " · Embedded" else " · Official app") },
                                     leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
                                     onClick = {
                                         selectedProvider = provider
@@ -333,7 +333,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                         showProviders = false
                                         error = null
                                         tracks = emptyList()
-                                        if (provider == "Audius") {
+                                        if (provider == "Audius" || provider == "JioSaavn") {
                                             search(query.ifBlank { "electronic chill" })
                                         } else if (provider == "YouTube Music") {
                                             tab = 1
@@ -515,7 +515,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
                         providers.forEach { provider ->
                             DropdownMenuItem(
-                                text = { Text(provider + if (provider == "Audius") " · In-app playback" else " · Open official service") },
+                                text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app playback" else " · Open official service") },
                                 leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
                                 onClick = {
                                     selectedProvider = provider
@@ -526,7 +526,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                         error = null
                                     }
                                     showProviders = false
-                                    Toast.makeText(context, if (provider == "Audius") "Audius in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, if (provider == "Audius" || provider == "JioSaavn") "$provider in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
@@ -536,7 +536,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     when (selectedProvider) {
                         "Audius" -> "IN-APP PLAYBACK · Search and stream available Audius tracks inside Nuvora using Media3. Availability depends on creator settings."
                         "YouTube Music" -> "IN-APP EMBEDDED VIDEO · Paste a YouTube/YouTube Music video link in Search to play it with the official YouTube embedded player. No audio extraction or background playback."
-                        "JioSaavn" -> "EXTERNAL ONLY · Opens the official JioSaavn service. No authorized direct-stream integration is configured."
+                        "JioSaavn" -> "IN-APP PLAYBACK · Uses a community API to search and stream available tracks. Endpoint availability may change."
                         "Spotify" -> "EXTERNAL ONLY · Opens Spotify. Its Android SDK can control the official Spotify app; it does not expose Spotify audio streams to Nuvora."
                         "SoundCloud" -> "EXTERNAL ONLY · Opens SoundCloud. In-app playback requires approved API credentials and compliance with SoundCloud's playback and attribution rules."
                         else -> "External service handoff."
