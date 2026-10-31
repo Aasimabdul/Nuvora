@@ -330,7 +330,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
                             providers.forEach { provider ->
                                 DropdownMenuItem(
-                                    text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app" else if (provider == "YouTube Music") " · Embedded" else " · Official app") },
+                                    text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app" else if (provider == "YouTube Music") " · Search only" else " · External") },
                                     leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
                                     onClick = {
                                         selectedProvider = provider
