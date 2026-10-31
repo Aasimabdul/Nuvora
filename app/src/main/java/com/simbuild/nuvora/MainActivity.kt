@@ -36,7 +36,10 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
@@ -80,7 +83,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sharedYouTubeLink = youtubeLinkFromIntent(intent)
-        player = ExoPlayer.Builder(this).build()
+        player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(
+                    DefaultDataSource.Factory(
+                        this,
+                        DefaultHttpDataSource.Factory()
+                            .setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
+                            .setAllowCrossProtocolRedirects(true)
+                    )
+                )
+            )
+            .build()
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
@@ -114,7 +128,18 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
     var editingSource by remember { mutableStateOf(sourceUrl) }
-    var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius")?.takeUnless { it == "YouTube Music" } ?: "Audius") }
+    var selectedProvider by remember {
+        val initialProvider = if (!prefs.getBoolean("default_provider_migrated_v040", false)) {
+            prefs.edit()
+                .putString("music_provider", "YouTube Music")
+                .putBoolean("default_provider_migrated_v040", true)
+                .apply()
+            "YouTube Music"
+        } else {
+            prefs.getString("music_provider", "YouTube Music") ?: "YouTube Music"
+        }
+        mutableStateOf(initialProvider)
+    }
     var showProviders by remember { mutableStateOf(false) }
     var showThemes by remember { mutableStateOf(false) }
     var showMoodSection by remember { mutableStateOf(prefs.getBoolean("home_moods", true)) }
@@ -162,8 +187,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             scope.launch {
                 try {
                     youtubeResults = YouTubeMusicRepository.search(term)
-                    error = if (youtubeResults.isEmpty()) "No YouTube Music results found."
-                        else "YouTube Music results are catalogue-only. Its official API does not provide native audio playback; choose Audius or JioSaavn to listen inside Nuvora."
+                    error = if (youtubeResults.isEmpty()) "No YouTube Music results found." else null
                 } catch (_: Exception) {
                     youtubeResults = emptyList()
                     error = "YouTube Music catalogue search failed. The unofficial search endpoint may be unavailable; try again later."
@@ -227,6 +251,34 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(track.streamUrl).build())
         player.prepare()
         player.play()
+    }
+
+    fun playYouTubeResult(result: YouTubeMusicResult) {
+        loading = true
+        error = null
+        scope.launch {
+            try {
+                val streamUrl = YouTubeMusicPlaybackRepository.resolveAudioStream(result.videoId)
+                val durationSeconds = result.durationLabel.split(":")
+                    .mapNotNull { it.toIntOrNull() }
+                    .fold(0) { total, part -> total * 60 + part }
+                val track = MusicTrack(
+                    id = "youtube-" + result.videoId,
+                    title = result.title,
+                    artist = result.artist,
+                    artworkUrl = result.artworkUrl,
+                    durationSeconds = durationSeconds,
+                    permalink = result.watchUrl,
+                    streamUrl = streamUrl
+                )
+                if (knownTracks.none { it.id == track.id }) knownTracks.add(track)
+                play(track)
+            } catch (e: Exception) {
+                error = "Couldn't resolve a playable stream for this YouTube Music result. Try another track; it may be unavailable or YouTube may have changed its stream format."
+            } finally {
+                loading = false
+            }
+        }
     }
 
     Scaffold(
@@ -332,7 +384,11 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
                             providers.forEach { provider ->
                                 DropdownMenuItem(
-                                    text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app" else if (provider == "YouTube Music") " · Search only" else " · External") },
+                                    text = { Text(provider + when (provider) {
+                                        "YouTube Music" -> " · In-app audio"
+                                        "Audius", "JioSaavn" -> " · In-app"
+                                        else -> " · External"
+                                    }) },
                                     leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
                                     onClick = {
                                         selectedProvider = provider
@@ -344,6 +400,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                             search(query.ifBlank { "electronic chill" })
                                         } else if (provider == "YouTube Music") {
                                             tab = 1
+                                            search(query.ifBlank { "popular music" })
                                         } else {
                                             val encoded = Uri.encode(query.ifBlank { "music" })
                                             val url = when (provider) {
@@ -375,7 +432,13 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     },
                     color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp)
                 )
-                SearchBar(query, { query = it }, { tab = 1; search(query) }, { search("electronic chill") })
+                SearchBar(
+                    query,
+                    { query = it },
+                    { tab = 1; search(query) },
+                    { search(query.ifBlank { "popular music" }) },
+                    placeholder = if (selectedProvider == "YouTube Music") "Search YouTube Music songs or artists…" else "Songs, artists, moods…"
+                )
                 StatusMessages(loading, error)
                 LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (showMoodSection) item {
@@ -444,7 +507,13 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             }
             1 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
-                SearchBar(query, { query = it }, { search(query) }, { search(query) })
+                SearchBar(
+                    query,
+                    { query = it },
+                    { search(query) },
+                    { search(query) },
+                    placeholder = if (selectedProvider == "YouTube Music") "Search YouTube Music songs or artists…" else "Songs, artists, moods…"
+                )
                 StatusMessages(loading, error)
                 if (selectedProvider == "YouTube Music") {
                     LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -454,7 +523,10 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                     Text(result.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     Text(result.artist, color = Muted, fontSize = 12.sp)
-                                    Text("Catalogue only · native audio unavailable", color = Cyan, fontSize = 10.sp)
+                                    Text("YouTube Music · Tap to play in Nuvora", color = Cyan, fontSize = 10.sp)
+                                }
+                                IconButton(onClick = { playYouTubeResult(result) }) {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = "Play in Nuvora", tint = Cyan)
                                 }
                             }
                         }
@@ -688,11 +760,17 @@ private fun extractYouTubeVideoId(input: String): String? {
 }
 
 @Composable
-private fun SearchBar(query: String, onQuery: (String) -> Unit, onSearch: () -> Unit, onRefresh: () -> Unit) {
+private fun SearchBar(
+    query: String,
+    onQuery: (String) -> Unit,
+    onSearch: () -> Unit,
+    onRefresh: () -> Unit,
+    placeholder: String = "Songs, artists, moods…"
+) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             value = query, onValueChange = onQuery, modifier = Modifier.weight(1f),
-            placeholder = { Text("Songs, artists, moods…") },
+            placeholder = { Text(placeholder) },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             shape = RoundedCornerShape(18.dp), singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
