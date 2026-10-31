@@ -45,10 +45,10 @@ gradle --no-daemon assembleDebug
 
 The APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions builds and attaches `Nuvora-debug.apk` to releases. A successful compile does not replace device testing: verify Audius search/playback, external provider handoff, YouTube embedding, downloads, theme persistence, and playback controls on a real Android device.
 
-## Current development version: v0.3.8
+## Current development version: v0.3.9
 
 - Added a time-based greeting, mood-based search cards, recently played tracks, horizontal music discovery cards, and a dedicated Discover destination.
 - Added Settings toggles to show or hide mood cards, recently played, and the horizontal carousel on Home.
 - Preserved existing music-source selection, themes, favourites, downloads, floating mini-player, and navigation.
-- Added in-app YouTube Music catalogue search; selecting a result loads its official embedded video.
-- YouTube remains limited to the official embedded player; native audio-only/background playback is not supported by the official YouTube API.
+- Added YouTube Music catalogue search in the main search flow. No embedded player or native YouTube audio stream extraction is included; the official API does not expose native audio playback.
+- Added JioSaavn playlist search and playlist track loading through the community API; endpoints may change.
