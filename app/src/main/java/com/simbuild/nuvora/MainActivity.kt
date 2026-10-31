@@ -3,13 +3,6 @@ package com.simbuild.nuvora
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import android.provider.MediaStore
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -19,8 +12,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -52,7 +43,6 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 
 private val Night = Color(0xFF080D1A)
 private val Panel = Color(0xFF121B2E)
@@ -68,44 +58,6 @@ private val themes = listOf(
     NuvoraTheme("Forest", Color(0xFF071510), Color(0xFF10251D), Color(0xFF48C78E), Color(0xFF9DE8C0)),
     NuvoraTheme("Light", Color(0xFFF4F7FC), Color(0xFFFFFFFF), Color(0xFF245DCE), Color(0xFF007F91))
 )
-
-private fun scanDeviceAudio(context: Context, excluded: Set<String>): List<MusicTrack> {
-    val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-    val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.DATA)
-    val result = mutableListOf<MusicTrack>()
-    context.contentResolver.query(collection, projection, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
-        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-        val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-        val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-        val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-        val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-        val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-        val pathCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
-        while (cursor.moveToNext()) {
-            val displayName = cursor.getString(nameCol).orEmpty()
-            val filePath = if (pathCol >= 0) cursor.getString(pathCol).orEmpty() else displayName
-            if (excluded.any { it.isNotBlank() && (filePath.contains(it, true) || displayName.contains(it, true)) }) continue
-            val id = cursor.getLong(idCol)
-            val uri = Uri.withAppendedPath(collection, id.toString()).toString()
-            val albumId = cursor.getLong(albumCol)
-            result += MusicTrack(
-                id = "local:$id",
-                title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: displayName,
-                artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown artist",
-                artworkUrl = "content://media/external/audio/albumart/$albumId",
-                durationSeconds = (cursor.getLong(durationCol) / 1000L).toInt(),
-                permalink = uri,
-                streamUrl = uri
-            )
-        }
-    }
-    return result
-}
-
-private fun clearAppCache(context: Context): Boolean = try {
-    context.cacheDir.listFiles()?.forEach { file -> if (file.isDirectory) file.deleteRecursively() else file.delete() }
-    true
-} catch (_: Exception) { false }
 
 private fun downloadTrack(context: Context, track: MusicTrack) {
     try {
@@ -133,7 +85,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         sharedYouTubeLink = youtubeLinkFromIntent(intent)
         player = ExoPlayer.Builder(this).build()
-        player.setHandleAudioBecomingNoisy(true)
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
@@ -172,16 +123,6 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var showMoodSection by remember { mutableStateOf(prefs.getBoolean("home_moods", true)) }
     var showRecentSection by remember { mutableStateOf(prefs.getBoolean("home_recent", true)) }
     var showCarouselSection by remember { mutableStateOf(prefs.getBoolean("home_carousel", true)) }
-    var localTracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
-    var scanMessage by remember { mutableStateOf<String?>(null) }
-    var excludedFolders by remember { mutableStateOf(prefs.getString("excluded_folders", "") ?: "") }
-    var showAbout by remember { mutableStateOf(false) }
-    var resumeLast by remember { mutableStateOf(prefs.getBoolean("resume_last", true)) }
-    var gapless by remember { mutableStateOf(prefs.getBoolean("gapless", true)) }
-    var pauseOnDisconnect by remember { mutableStateOf(prefs.getBoolean("pause_disconnect", true)) }
-    var normalizeVolume by remember { mutableStateOf(prefs.getBoolean("normalize_volume", false)) }
-    var sleepRemaining by remember { mutableIntStateOf(0) }
-    var sleepJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud", "Bandcamp")
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -201,7 +142,6 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         while (active != null) {
             positionMs = player.currentPosition.coerceAtLeast(0L)
             durationMs = player.duration.takeIf { it > 0L } ?: 0L
-            if (resumeLast && active != null) prefs.edit().putLong("last_position", positionMs).apply()
             kotlinx.coroutines.delay(500)
         }
     }
@@ -268,43 +208,10 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         }
     }
 
-    LaunchedEffect(Unit) {
-        search("electronic chill")
-        if (resumeLast) {
-            val stream = prefs.getString("last_stream", null)
-            val title = prefs.getString("last_title", null)
-            if (!stream.isNullOrBlank() && !title.isNullOrBlank()) {
-                val restored = MusicTrack(
-                    id = prefs.getString("last_id", "restored") ?: "restored",
-                    title = title,
-                    artist = prefs.getString("last_artist", "Unknown artist") ?: "Unknown artist",
-                    artworkUrl = prefs.getString("last_artwork", null),
-                    durationSeconds = prefs.getInt("last_duration", 0),
-                    permalink = prefs.getString("last_permalink", stream) ?: stream,
-                    streamUrl = stream
-                )
-                active = restored
-                player.setMediaItem(MediaItem.fromUri(stream))
-                player.prepare()
-                val savedPosition = prefs.getLong("last_position", 0L)
-                if (savedPosition > 0L) player.seekTo(savedPosition)
-                recentlyPlayed.add(restored)
-            }
-        }
-    }
+    LaunchedEffect(Unit) { search("electronic chill") }
 
     fun play(track: MusicTrack) {
         active = track
-        if (resumeLast) prefs.edit()
-            .putString("last_id", track.id)
-            .putString("last_title", track.title)
-            .putString("last_artist", track.artist)
-            .putString("last_artwork", track.artworkUrl)
-            .putInt("last_duration", track.durationSeconds)
-            .putString("last_stream", track.streamUrl)
-            .putString("last_permalink", track.permalink)
-            .putLong("last_position", 0L)
-            .apply()
         recentlyPlayed.removeAll { it.id == track.id }
         recentlyPlayed.add(0, track)
         while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
@@ -327,7 +234,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         color = Panel.copy(alpha = 0.98f),
                         tonalElevation = 3.dp,
                         shadowElevation = 10.dp,
-                        modifier = Modifier.fillMaxWidth().clickable { tab = 5 }
+                        modifier = Modifier.fillMaxWidth().clickable { tab = 4 }
                     ) {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -372,8 +279,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         tonalElevation = 0.dp,
                         modifier = Modifier.height(64.dp)
                     ) {
-                        val labels = listOf("Home", "Search", "Library", "Discover", "Settings")
-                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Explore, Icons.Rounded.Settings)
+                        val labels = listOf("Home", "Search", "Library", "Settings")
+                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
                         labels.forEachIndexed { index, label ->
                             NavigationBarItem(
                                 selected = tab == index,
@@ -518,27 +425,6 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             }
                         }
                     }
-                    if (showCarouselSection && tracks.isNotEmpty()) {
-                        item {
-                            Text("Artists to explore", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                items(tracks.distinctBy { it.artist }.take(10), key = { "artist-${it.artist}" }) { artistTrack ->
-                                    Column(
-                                        Modifier.width(100.dp).clickable {
-                                            query = artistTrack.artist
-                                            search(query)
-                                            tab = 1
-                                        },
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Cover(artistTrack.artworkUrl, Modifier.size(84.dp).clip(RoundedCornerShape(50)))
-                                        Text(artistTrack.artist, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                            }
-                        }
-                    }
                     item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
@@ -563,34 +449,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
             2 -> Column(Modifier.fillMaxSize().padding(insets)) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Library", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
-                    val scanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                        if (granted) {
-                            localTracks = scanDeviceAudio(context, excludedFolders.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet())
-                            scanMessage = "Scanned " + localTracks.size + " local audio tracks."
-                        } else scanMessage = "Audio permission is needed to scan your music library."
-                    }
-                    OutlinedButton(onClick = {
-                        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
-                            localTracks = scanDeviceAudio(context, excludedFolders.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet())
-                            scanMessage = "Scanned " + localTracks.size + " local audio tracks."
-                        } else scanLauncher.launch(permission)
-                    }) { Icon(Icons.Rounded.Refresh, contentDescription = null); Text(" Scan") }
-                }
-                if (scanMessage != null) Text(scanMessage!!, color = Muted, modifier = Modifier.padding(horizontal = 20.dp))
-                if (localTracks.isNotEmpty()) {
-                    Text("On this device · " + localTracks.size, color = Cyan, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
-                    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(localTracks, key = { it.id }) { track ->
-                            TrackRow(track, active?.id == track.id, { play(track) }, {
-                                favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
-                            }, track.id in favorites, { downloadTrack(context, track) })
-                        }
-                    }
-                }
-                Text("Your favourites", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
+                Text("Your favourites", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
                 val saved = tracks.filter { it.id in favorites }
                 if (saved.isEmpty()) {
                     Text("Tap the heart beside a track to save it here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp))
@@ -602,20 +461,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     }
                 }
             }
-            3 -> Column(Modifier.fillMaxSize().padding(insets)) {
-                Text("Discover", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 8.dp))
-                SearchBar(query, { query = it }, { search(query) }, { search("electronic chill") })
-                StatusMessages(loading, error)
-                LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { Text("Trending discoveries", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
-                    items(tracks, key = { "discover-tab-${it.id}" }) { track ->
-                        TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
-                        }, track.id in favorites, { downloadTrack(context, track) })
-                    }
-                }
-            }
-            4 -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Text("Appearance", color = Muted, fontSize = 13.sp)
                 Box {
@@ -719,71 +565,6 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     modifier = Modifier.fillMaxWidth()
                 ) { Icon(Icons.Rounded.Save, contentDescription = null); Text("  Save source") }
                 }
-                HorizontalDivider()
-                Text("Playback & audio", color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Resume last played song")
-                        Text("Restore last track after reopening the app", color = Muted, fontSize = 11.sp)
-                    }
-                    Switch(checked = resumeLast, onCheckedChange = { resumeLast = it; prefs.edit().putBoolean("resume_last", it).apply() })
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Gapless playback (where supported)", modifier = Modifier.weight(1f), fontSize = 13.sp)
-                    Switch(checked = gapless, onCheckedChange = { gapless = it; prefs.edit().putBoolean("gapless", it).apply(); player.setPauseAtEndOfMediaItems(!it) })
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Pause when headphones disconnect", modifier = Modifier.weight(1f), fontSize = 13.sp)
-                    Switch(checked = pauseOnDisconnect, onCheckedChange = { pauseOnDisconnect = it; prefs.edit().putBoolean("pause_disconnect", it).apply(); player.setHandleAudioBecomingNoisy(it) })
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Volume normalization (basic volume cap)", modifier = Modifier.weight(1f), fontSize = 13.sp)
-                    Switch(checked = normalizeVolume, onCheckedChange = { normalizeVolume = it; prefs.edit().putBoolean("normalize_volume", it).apply(); player.volume = if (it) 0.85f else 1f })
-                }
-                Text("Sleep timer", color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (sleepRemaining > 0) "Timer active · " + sleepRemaining + " min remaining" else "Pause playback after a set time", color = Muted, fontSize = 12.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(15, 30, 45, 60).forEach { minutes ->
-                        OutlinedButton(onClick = {
-                            sleepJob?.cancel()
-                            sleepRemaining = minutes
-                            sleepJob = scope.launch {
-                                repeat(minutes * 60) {
-                                    delay(1000)
-                                    sleepRemaining = ((minutes * 60 - it - 1) / 60) + 1
-                                }
-                                player.pause()
-                                sleepRemaining = 0
-                                Toast.makeText(context, "Sleep timer finished", Toast.LENGTH_SHORT).show()
-                            }
-                        }) { Text(minutes.toString() + "m") }
-                    }
-                    TextButton(onClick = { sleepJob?.cancel(); sleepRemaining = 0 }) { Text("Off") }
-                }
-                Text("Excluded folders", color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    value = excludedFolders,
-                    onValueChange = { excludedFolders = it; prefs.edit().putString("excluded_folders", it).apply() },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Folder names/paths, comma-separated") },
-                    placeholder = { Text("WhatsApp, Podcasts, Recordings") },
-                    minLines = 2
-                )
-                Text("Applied when scanning the local library.", color = Muted, fontSize = 11.sp)
-                OutlinedButton(onClick = {
-                    Toast.makeText(context, if (clearAppCache(context)) "App and artwork cache cleared" else "Could not clear cache", Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Rounded.DeleteSweep, contentDescription = null); Text("  Clear cache & artwork cache")
-                }
-                OutlinedButton(onClick = { showAbout = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Rounded.Info, contentDescription = null); Text("  About Nuvora · Version 0.3.7 · Open-source credits")
-                }
-                if (showAbout) AlertDialog(
-                    onDismissRequest = { showAbout = false },
-                    title = { Text("About Nuvora") },
-                    text = { Text("Nuvora 0.3.7\nBuilt with Kotlin, Jetpack Compose, AndroidX Media3 and Coil. Open-source project by Aasim.\n\nAudius streaming and local audio playback are in-app. YouTube uses official embedded video. Other streaming providers require authorized API integrations for native playback.") },
-                    confirmButton = { TextButton(onClick = { showAbout = false }) { Text("Close") } }
-                )
                 HorizontalDivider()
                 Text("Downloads", color = Muted, fontSize = 13.sp)
                 Text("Tap the download icon beside a track. Files are saved in Music/Nuvora and the Android download notification shows progress.", fontSize = 13.sp)
