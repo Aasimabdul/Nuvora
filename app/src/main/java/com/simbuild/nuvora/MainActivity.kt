@@ -534,18 +534,24 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             Column(
-                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 10.dp),
+                Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 7.dp, bottom = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                active?.let { track ->
+                if (tab != 4) active?.let { track ->
                     Surface(
                         shape = RoundedCornerShape(22.dp),
-                        color = Panel.copy(alpha = 0.98f),
-                        tonalElevation = 3.dp,
-                        shadowElevation = 10.dp,
+                        color = Panel.copy(alpha = 0.94f),
+                        border = BorderStroke(1.dp, Cyan.copy(alpha = 0.18f)),
+                        tonalElevation = 4.dp,
+                        shadowElevation = 14.dp,
                         modifier = Modifier.fillMaxWidth().clickable { tab = 4 }
                     ) {
-                        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        Column(
+                            Modifier.background(
+                                Brush.verticalGradient(listOf(Panel.copy(alpha = 0.98f), Color(0xFF0D1528))),
+                                RoundedCornerShape(22.dp)
+                            ).padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Cover(track.artworkUrl, Modifier.size(42.dp))
                                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
@@ -555,7 +561,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                 IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
                                     Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause")
                                 }
-                                IconButton(onClick = { player.seekToNextMediaItem() }) {
+                                IconButton(onClick = { skipNext() }) {
                                     Icon(Icons.Rounded.SkipNext, contentDescription = "Next")
                                 }
                             }
@@ -578,15 +584,16 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
                 Surface(
                     shape = RoundedCornerShape(28.dp),
-                    color = Panel.copy(alpha = 0.98f),
-                    tonalElevation = 3.dp,
-                    shadowElevation = 12.dp,
+                    color = Panel.copy(alpha = 0.94f),
+                    border = BorderStroke(1.dp, Blue.copy(alpha = 0.18f)),
+                    tonalElevation = 4.dp,
+                    shadowElevation = 16.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     NavigationBar(
                         containerColor = Color.Transparent,
                         tonalElevation = 0.dp,
-                        modifier = Modifier.height(64.dp)
+                        modifier = Modifier.height(68.dp)
                     ) {
                         val labels = listOf("Home", "Search", "Playlists", "Settings")
                         val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.QueueMusic, Icons.Rounded.Settings)
@@ -620,56 +627,15 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         Text("NUVORA", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                         Text("Find your frequency.", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     }
-                    Box {
-                        OutlinedButton(
-                            onClick = { showProviders = true },
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-                        ) {
-                            Icon(Icons.Rounded.LibraryMusic, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(5.dp))
-                            Text(selectedProvider, fontSize = 12.sp, maxLines = 1)
-                            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
-                        }
-                        DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
-                            providers.forEach { provider ->
-                                DropdownMenuItem(
-                                    text = { Text(provider + when (provider) {
-                                        "YouTube Music" -> " · In-app audio (best-effort)"
-                                        "Audius", "JioSaavn" -> " · In-app"
-                                        else -> " · External"
-                                    }) },
-                                    leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
-                                    onClick = {
-                                        selectedProvider = provider
-                                        prefs.edit().putString("music_provider", provider).apply()
-                                        showProviders = false
-                                        error = null
-                                        tracks = emptyList()
-                                        if (provider == "Audius" || provider == "JioSaavn") {
-                                            search(query.ifBlank { "electronic chill" })
-                                        } else if (provider == "YouTube Music") {
-                                            tab = 1
-                                            search(query.ifBlank { "popular music" })
-                                        } else {
-                                            val encoded = Uri.encode(query.ifBlank { "music" })
-                                            val url = when (provider) {
-                                                "JioSaavn" -> "https://www.jiosaavn.com/search/$encoded"
-                                                "Spotify" -> "https://open.spotify.com/search/$encoded"
-                                                "SoundCloud" -> "https://soundcloud.com/search?q=$encoded"
-                                                "Bandcamp" -> "https://bandcamp.com/search?q=$encoded"
-                                                else -> null
-                                            }
-                                            if (url != null) try {
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                            } catch (_: Exception) {
-                                                Toast.makeText(context, "Could not open $provider", Toast.LENGTH_SHORT).show()
-                                            }
-                                            error = "$provider opens through its official app or website in this version."
-                                        }
-                                    }
-                                )
-                            }
-                        }
+                    OutlinedButton(
+                        onClick = { showProviders = true },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.widthIn(max = 190.dp)
+                    ) {
+                        Icon(Icons.Rounded.LibraryMusic, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(selectedProvider, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
                     }
                 }
                 Text(
@@ -731,12 +697,39 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             }
                         }
                     }
+                    if (showRecentSection) {
+                        val mostPlayed = knownTracks.filter { (playCounts[it.id] ?: 0) > 0 }
+                            .sortedByDescending { playCounts[it.id] ?: 0 }.take(8)
+                        if (mostPlayed.isNotEmpty()) item {
+                            Text("Most played", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(mostPlayed, key = { "most-${it.id}" }) { track ->
+                                    Column(Modifier.width(112.dp).clickable { queueTracks = mostPlayed; play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Cover(track.artworkUrl, Modifier.size(112.dp))
+                                        Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if (showCarouselSection) item {
                         Text("Discover music", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-                        if (tracks.isNotEmpty()) {
+                        if (selectedProvider == "YouTube Music" && youtubeResults.isNotEmpty()) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(youtubeResults.take(8), key = { "discover-youtube-${it.videoId}" }) { result ->
+                                    val track = result.toMusicTrack()
+                                    Column(Modifier.width(124.dp).clickable { queueTracks = youtubeResults.map { it.toMusicTrack() }; playYouTubeResult(result) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Cover(result.artworkUrl, Modifier.size(124.dp))
+                                        Text(result.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(result.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        } else if (tracks.isNotEmpty()) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(tracks.take(8), key = { "discover-${it.id}" }) { track ->
-                                    Column(Modifier.width(124.dp).clickable { play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Column(Modifier.width(124.dp).clickable { queueTracks = tracks; play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Cover(track.artworkUrl, Modifier.size(124.dp))
                                         Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -746,10 +739,18 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         }
                     }
                     item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
-                    items(tracks, key = { it.id }) { track ->
-                        TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = (if (track.id in favorites) favorites - track.id else favorites + track.id).also { prefs.edit().putStringSet("favorite_ids", it).apply() }
-                        }, track.id in favorites, { downloadTrack(context, track) })
+                    if (selectedProvider == "YouTube Music") {
+                        items(youtubeResults, key = { "trending-youtube-${it.videoId}" }) { result ->
+                            val track = result.toMusicTrack()
+                            TrackRow(track, active?.id == track.id, { queueTracks = youtubeResults.map { it.toMusicTrack() }; playYouTubeResult(result) },
+                                { toggleFavorite(track) }, track.id in favorites, {}, { toggleTrackSelection(track) }, track.id in selectedTrackIds)
+                        }
+                    } else {
+                        items(tracks, key = { "trending-${it.id}" }) { track ->
+                            TrackRow(track, active?.id == track.id, { queueTracks = tracks; play(track) },
+                                { toggleFavorite(track) }, track.id in favorites, { downloadTrack(context, track) },
+                                { toggleTrackSelection(track) }, track.id in selectedTrackIds)
+                        }
                     }
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
                 }
@@ -767,24 +768,23 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 if (selectedProvider == "YouTube Music") {
                     LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(youtubeResults, key = { it.videoId }) { result ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable { playYouTubeResult(result) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Cover(result.artworkUrl, Modifier.size(54.dp))
-                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                                    Text(result.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(result.artist, color = Muted, fontSize = 12.sp)
-                                    Text("YouTube Music · Tap to play in Nuvora", color = Cyan, fontSize = 10.sp)
-                                }
-                                IconButton(onClick = { playYouTubeResult(result) }) {
-                                    Icon(Icons.Rounded.PlayArrow, contentDescription = "Play in Nuvora", tint = Cyan)
-                                }
-                            }
+                            val track = result.toMusicTrack()
+                            TrackRow(
+                                track = track,
+                                isActive = active?.id == track.id,
+                                onPlay = { queueTracks = youtubeResults.map { it.toMusicTrack() }; playYouTubeResult(result) },
+                                onFavorite = { toggleFavorite(track) },
+                                favorite = track.id in favorites,
+                                onSelect = { toggleTrackSelection(track) },
+                                selected = track.id in selectedTrackIds
+                            )
                         }
                     }
                 } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(tracks, key = { it.id }) { track ->
-                        TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = (if (track.id in favorites) favorites - track.id else favorites + track.id).also { prefs.edit().putStringSet("favorite_ids", it).apply() }
-                        }, track.id in favorites, { downloadTrack(context, track) })
+                        TrackRow(track, active?.id == track.id, { queueTracks = tracks; play(track) },
+                            { toggleFavorite(track) }, track.id in favorites, { downloadTrack(context, track) },
+                            { toggleTrackSelection(track) }, track.id in selectedTrackIds)
                     }
                 }
             }
@@ -889,31 +889,10 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
                 HorizontalDivider()
                 Text("Music source", color = Muted, fontSize = 13.sp)
-                Box {
-                    OutlinedButton(onClick = { showProviders = true }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
-                        Text("  Source: $selectedProvider", modifier = Modifier.weight(1f))
-                        Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
-                    }
-                    DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
-                        providers.forEach { provider ->
-                            DropdownMenuItem(
-                                text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app playback" else " · Open official service") },
-                                leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
-                                onClick = {
-                                    selectedProvider = provider
-                                    prefs.edit().putString("music_provider", provider).apply()
-                                    if (provider != "Audius") {
-                                        tracks = emptyList()
-                                        loading = false
-                                        error = null
-                                    }
-                                    showProviders = false
-                                    Toast.makeText(context, if (provider == "Audius" || provider == "JioSaavn") "$provider in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                    }
+                OutlinedButton(onClick = { showProviders = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
+                    Text("  Source: $selectedProvider", modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
                 }
                 Text(
                     when (selectedProvider) {
