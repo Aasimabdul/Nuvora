@@ -10,8 +10,8 @@ android {
         applicationId = "com.simbuild.nuvora"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.3.7"
+        versionCode = 6
+        versionName = "0.3.6"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
