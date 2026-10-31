@@ -766,7 +766,16 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                 { toggleTrackSelection(track) }, track.id in selectedTrackIds)
                         }
                     }
-                    item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
+                    item {
+                        Text(
+                            when (selectedProvider) {
+                                "YouTube Music" -> "YouTube Music catalogue · Public stream availability can vary."
+                                "JioSaavn" -> "JioSaavn catalogue · Community API and stream availability can change."
+                                else -> "Catalogue by Audius · Track availability depends on creator settings."
+                            },
+                            color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)
+                        )
+                    }
                 }
             }
             1 -> Column(Modifier.fillMaxSize().padding(insets)) {
