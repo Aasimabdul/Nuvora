@@ -3,11 +3,13 @@ package com.simbuild.nuvora
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +17,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import android.webkit.WebSettings
@@ -42,13 +47,19 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import coil.compose.AsyncImage
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.launch
 
 private val Night = Color(0xFF080D1A)
-private val Panel = Color(0xFF121B2E)
-private val Blue = Color(0xFF4D8DFF)
-private val Cyan = Color(0xFF5CE1E6)
-private val Muted = Color(0xFF9AA8C2)
+private val Panel: Color
+    @Composable get() = MaterialTheme.colorScheme.surface
+private val Blue: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+private val Cyan: Color
+    @Composable get() = MaterialTheme.colorScheme.secondary
+private val Muted: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
 
 private data class NuvoraTheme(val label: String, val background: Color, val surface: Color, val primary: Color, val secondary: Color)
 private val themes = listOf(
@@ -75,6 +86,46 @@ private fun downloadTrack(context: Context, track: MusicTrack) {
     } catch (e: Exception) {
         Toast.makeText(context, "Could not start download", Toast.LENGTH_SHORT).show()
     }
+}
+
+private fun loadFavorites(prefs: SharedPreferences): List<MusicTrack> = try {
+    val array = JSONArray(prefs.getString("favorite_tracks", "[]") ?: "[]")
+    val loaded = mutableListOf<MusicTrack>()
+    for (i in 0 until array.length()) {
+        val o = array.optJSONObject(i) ?: continue
+        loaded.add(
+            MusicTrack(
+                id = o.optString("id"),
+                title = o.optString("title", "Untitled track"),
+                artist = o.optString("artist", "Unknown artist"),
+                artworkUrl = o.optString("artwork").takeIf { it.startsWith("https://") },
+                durationSeconds = o.optInt("duration", 0),
+                permalink = o.optString("permalink"),
+                streamUrl = o.optString("stream")
+            )
+        )
+    }
+    loaded.filter { it.id.isNotBlank() && it.streamUrl.startsWith("https://") }
+} catch (_: Exception) {
+    emptyList()
+}
+
+private fun saveFavorites(prefs: SharedPreferences, tracks: List<MusicTrack>) {
+    val array = JSONArray()
+    tracks.forEach { t ->
+        array.put(
+            JSONObject()
+                .put("id", t.id).put("title", t.title).put("artist", t.artist)
+                .put("artwork", t.artworkUrl ?: "").put("duration", t.durationSeconds)
+                .put("permalink", t.permalink).put("stream", t.streamUrl)
+        )
+    }
+    prefs.edit().putString("favorite_tracks", array.toString()).apply()
+}
+
+private fun formatTime(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(total / 60, total % 60)
 }
 
 class MainActivity : ComponentActivity() {
@@ -128,7 +179,13 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var query by remember { mutableStateOf("") }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
     val recentlyPlayed = remember { mutableStateListOf<MusicTrack>() }
-    var favorites by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val favoriteTracks = remember { mutableStateListOf<MusicTrack>().also { it.addAll(loadFavorites(prefs)) } }
+    val favorites = favoriteTracks.map { it.id }.toSet()
+    fun toggleFavorite(track: MusicTrack) {
+        val existing = favoriteTracks.indexOfFirst { it.id == track.id }
+        if (existing >= 0) favoriteTracks.removeAt(existing) else favoriteTracks.add(0, track)
+        saveFavorites(prefs, favoriteTracks)
+    }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
     var playing by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -137,6 +194,16 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     val scope = rememberCoroutineScope()
+    val queue = remember { mutableListOf<MusicTrack>() }
+    var shuffleOn by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+    fun markActive(track: MusicTrack) {
+        active = track
+        recentlyPlayed.removeAll { it.id == track.id }
+        recentlyPlayed.add(0, track)
+        while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
+        playerError = null
+    }
 
     LaunchedEffect(player, active, playing) {
         while (active != null) {
@@ -192,6 +259,10 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val id = mediaItem?.mediaId ?: return
+                queue.firstOrNull { it.id == id }?.let { markActive(it) }
+            }
             override fun onPlayerError(error: PlaybackException) {
                 playerError = "This track could not play. Try another track."
             }
@@ -210,16 +281,18 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
 
     LaunchedEffect(Unit) { search("electronic chill") }
 
-    fun play(track: MusicTrack) {
-        active = track
-        recentlyPlayed.removeAll { it.id == track.id }
-        recentlyPlayed.add(0, track)
-        while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
-        playerError = null
-        player.setMediaItem(MediaItem.fromUri(track.streamUrl))
+    fun play(track: MusicTrack, list: List<MusicTrack> = tracks) {
+        val items = if (list.any { it.id == track.id }) list else listOf(track)
+        queue.clear()
+        queue.addAll(items)
+        val index = items.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
+        markActive(track)
+        player.setMediaItems(items.map { MediaItem.Builder().setMediaId(it.id).setUri(it.streamUrl).build() }, index, 0L)
         player.prepare()
         player.play()
     }
+
+    BackHandler(enabled = tab != 0) { tab = 0 }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -243,6 +316,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                     Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
+                                IconButton(onClick = { player.seekToPreviousMediaItem() }) {
+                                    Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous")
+                                }
                                 IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
                                     Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause")
                                 }
@@ -256,7 +332,6 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                     onValueChange = { positionMs = (it * durationMs).toLong() },
                                     onValueChangeFinished = { player.seekTo(positionMs) },
                                     modifier = Modifier.fillMaxWidth().height(18.dp),
-                                    thumb = { SliderDefaults.Thumb(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, colors = SliderDefaults.colors(thumbColor = Cyan)) },
                                     colors = SliderDefaults.colors(
                                         thumbColor = Cyan,
                                         activeTrackColor = Cyan,
@@ -360,10 +435,10 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
                 Text(
                     when (java.time.LocalTime.now().hour) {
-                        in 5..11 -> "Good morning. Find your frequency."
-                        in 12..16 -> "Good afternoon. Find your frequency."
-                        in 17..21 -> "Good evening. Find your frequency."
-                        else -> "Welcome back. Find your frequency."
+                        in 5..11 -> "Good morning"
+                        in 12..16 -> "Good afternoon"
+                        in 17..21 -> "Good evening"
+                        else -> "Welcome back"
                     },
                     color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp)
                 )
@@ -402,7 +477,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             Text("Recently played", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(recentlyPlayed, key = { "recent-${it.id}" }) { track ->
-                                    Column(Modifier.width(112.dp).clickable { play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Column(Modifier.width(112.dp).clickable { play(track, recentlyPlayed.toList()) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Cover(track.artworkUrl, Modifier.size(112.dp))
                                         Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -449,7 +524,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                            toggleFavorite(track)
                         }, track.id in favorites, { downloadTrack(context, track) })
                     }
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
@@ -464,20 +539,24 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                            toggleFavorite(track)
                         }, track.id in favorites, { downloadTrack(context, track) })
                     }
                 }
             }
             2 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Your favourites", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
-                val saved = tracks.filter { it.id in favorites }
+                val saved = favoriteTracks.toList()
                 if (saved.isEmpty()) {
-                    Text("Tap the heart beside a track to save it here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp))
+                    Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, tint = Muted, modifier = Modifier.size(56.dp))
+                        Text("No favourites yet", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, modifier = Modifier.padding(top = 12.dp))
+                        Text("Tap the heart beside a track to save it here.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
                 } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp)) {
                     items(saved, key = { it.id }) { track ->
-                        TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = favorites - track.id
+                        TrackRow(track, active?.id == track.id, { play(track, saved) }, {
+                            toggleFavorite(track)
                         }, true, { downloadTrack(context, track) })
                     }
                 }
@@ -490,12 +569,12 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     item { Text("Trending discoveries", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp)) }
                     items(tracks, key = { "discover-tab-${it.id}" }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                            toggleFavorite(track)
                         }, track.id in favorites, { downloadTrack(context, track) })
                     }
                 }
             }
-            4 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            4 -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Text("Appearance", color = Muted, fontSize = 13.sp)
                 Box {
@@ -619,17 +698,46 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     Text(track.artist, color = Muted, fontSize = 15.sp)
                     if (playerError != null) Text(playerError!!, color = Color(0xFFFF8A80), modifier = Modifier.padding(top = 12.dp))
                     Spacer(Modifier.height(24.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        IconButton(onClick = { if (track.id in favorites) favorites = favorites - track.id else favorites = favorites + track.id }) {
-                            Icon(if (track.id in favorites) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = Cyan)
+                    SeekBar(positionMs, durationMs, { positionMs = it }, { player.seekTo(positionMs) })
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+                        IconButton(onClick = { shuffleOn = !shuffleOn; player.shuffleModeEnabled = shuffleOn }) {
+                            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (shuffleOn) Cyan else Muted)
                         }
-                        IconButton(onClick = { player.seekBack() }) { Icon(Icons.Rounded.Replay10, contentDescription = "Back 10 seconds") }
+                        IconButton(onClick = { player.seekToPreviousMediaItem() }) {
+                            Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(34.dp))
+                        }
                         Surface(shape = RoundedCornerShape(50), color = Blue, modifier = Modifier.size(72.dp).clickable { if (player.isPlaying) player.pause() else player.play() }) {
                             Box(contentAlignment = Alignment.Center) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause", tint = Color.White, modifier = Modifier.size(38.dp)) }
                         }
-                        IconButton(onClick = { player.seekForward() }) { Icon(Icons.Rounded.Forward10, contentDescription = "Forward 10 seconds") }
+                        IconButton(onClick = { player.seekToNextMediaItem() }) {
+                            Icon(Icons.Rounded.SkipNext, contentDescription = "Next", modifier = Modifier.size(34.dp))
+                        }
+                        IconButton(onClick = {
+                            val next = when (repeatMode) {
+                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                else -> Player.REPEAT_MODE_OFF
+                            }
+                            repeatMode = next
+                            player.repeatMode = next
+                        }) {
+                            Icon(
+                                if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                                contentDescription = "Repeat",
+                                tint = if (repeatMode != Player.REPEAT_MODE_OFF) Cyan else Muted
+                            )
+                        }
                     }
-                    TextButton(onClick = { tab = 0 }) { Text("Back to discovery") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { toggleFavorite(track) }) {
+                            Icon(if (track.id in favorites) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = null, tint = Cyan, modifier = Modifier.size(20.dp))
+                            Text(if (track.id in favorites) "  Saved" else "  Save")
+                        }
+                        TextButton(onClick = { downloadTrack(context, track) }) {
+                            Icon(Icons.Rounded.Download, contentDescription = null, tint = Cyan, modifier = Modifier.size(20.dp))
+                            Text("  Download")
+                        }
+                    }
                     Spacer(Modifier.weight(1f))
                 }
             } ?: Column(Modifier.fillMaxSize().padding(insets).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -662,6 +770,7 @@ private fun extractYouTubeVideoId(input: String): String? {
 private fun YouTubeEmbedScreen(sharedYouTubeLink: String? = null) {
     var videoUrl by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink.orEmpty()) }
     var videoId by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink?.let { extractYouTubeVideoId(it) }) }
+    val clipboard = LocalClipboardManager.current
     Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("YouTube Music", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Play an official YouTube video inside Nuvora. Find a song in YouTube Music, use Share → Copy link, then paste it here.", color = Muted, fontSize = 13.sp)
@@ -671,6 +780,15 @@ private fun YouTubeEmbedScreen(sharedYouTubeLink: String? = null) {
             modifier = Modifier.fillMaxWidth(),
             label = { Text("YouTube / YouTube Music link") },
             placeholder = { Text("https://music.youtube.com/watch?v=…") },
+            trailingIcon = {
+                IconButton(onClick = {
+                    val pasted = clipboard.getText()?.text.orEmpty().trim()
+                    if (pasted.isNotBlank()) {
+                        videoUrl = pasted
+                        videoId = extractYouTubeVideoId(pasted)
+                    }
+                }) { Icon(Icons.Rounded.ContentPaste, contentDescription = "Paste link") }
+            },
             singleLine = true
         )
         Button(
@@ -684,7 +802,7 @@ private fun YouTubeEmbedScreen(sharedYouTubeLink: String? = null) {
         videoId?.let { id ->
             key(id) {
                 AndroidView(
-                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                    modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(18.dp)),
                     factory = { context ->
                         WebView(context).apply {
                             settings.javaScriptEnabled = true
@@ -744,6 +862,9 @@ private fun SearchBar(query: String, onQuery: (String) -> Unit, onSearch: () -> 
             value = query, onValueChange = onQuery, modifier = Modifier.weight(1f),
             placeholder = { Text("Songs, artists, moods…") },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }) { Icon(Icons.Rounded.Close, contentDescription = "Clear search") }
+            },
             shape = RoundedCornerShape(18.dp), singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() })
@@ -777,20 +898,43 @@ private fun Cover(url: String?, modifier: Modifier = Modifier) {
 private fun TrackRow(track: MusicTrack, isActive: Boolean, onPlay: () -> Unit, onFavorite: () -> Unit, favorite: Boolean, onDownload: () -> Unit = {}) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .background(if (isActive) Color(0xFF1A2E4F) else Panel)
+            .background(if (isActive) Blue.copy(alpha = 0.2f) else Panel)
             .clickable(onClick = onPlay).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Cover(track.artworkUrl, Modifier.size(58.dp))
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(track.title, fontWeight = FontWeight.SemiBold, color = if (isActive) Cyan else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(track.durationLabel, color = Cyan, fontSize = 10.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isActive) {
+                    Icon(Icons.Rounded.GraphicEq, contentDescription = "Now playing", tint = Cyan, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(track.durationLabel, color = Muted, fontSize = 10.sp)
+            }
         }
         IconButton(onClick = onFavorite) {
             Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) Cyan else Muted)
         }
         IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = Cyan) }
         IconButton(onClick = onPlay) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play track", tint = Color.White) }
+    }
+}
+
+@Composable
+private fun SeekBar(positionMs: Long, durationMs: Long, onChange: (Long) -> Unit, onFinished: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Slider(
+            value = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f,
+            onValueChange = { if (durationMs > 0L) onChange((it * durationMs).toLong()) },
+            onValueChangeFinished = onFinished,
+            enabled = durationMs > 0L,
+            colors = SliderDefaults.colors(thumbColor = Cyan, activeTrackColor = Cyan, inactiveTrackColor = Muted.copy(alpha = 0.25f))
+        )
+        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatTime(positionMs), color = Muted, fontSize = 11.sp)
+            Text(formatTime(durationMs), color = Muted, fontSize = 11.sp)
+        }
     }
 }
