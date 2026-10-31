@@ -518,7 +518,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 if (selectedProvider == "YouTube Music") {
                     LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(youtubeResults, key = { it.videoId }) { result ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable { playYouTubeResult(result) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Cover(result.artworkUrl, Modifier.size(54.dp))
                                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                     Text(result.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
