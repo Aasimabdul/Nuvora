@@ -133,6 +133,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         sharedYouTubeLink = youtubeLinkFromIntent(intent)
         player = ExoPlayer.Builder(this).build()
+        player.setHandleAudioBecomingNoisy(true)
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
@@ -200,6 +201,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         while (active != null) {
             positionMs = player.currentPosition.coerceAtLeast(0L)
             durationMs = player.duration.takeIf { it > 0L } ?: 0L
+            if (resumeLast && active != null) prefs.edit().putLong("last_position", positionMs).apply()
             kotlinx.coroutines.delay(500)
         }
     }
@@ -266,10 +268,43 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         }
     }
 
-    LaunchedEffect(Unit) { search("electronic chill") }
+    LaunchedEffect(Unit) {
+        search("electronic chill")
+        if (resumeLast) {
+            val stream = prefs.getString("last_stream", null)
+            val title = prefs.getString("last_title", null)
+            if (!stream.isNullOrBlank() && !title.isNullOrBlank()) {
+                val restored = MusicTrack(
+                    id = prefs.getString("last_id", "restored") ?: "restored",
+                    title = title,
+                    artist = prefs.getString("last_artist", "Unknown artist") ?: "Unknown artist",
+                    artworkUrl = prefs.getString("last_artwork", null),
+                    durationSeconds = prefs.getInt("last_duration", 0),
+                    permalink = prefs.getString("last_permalink", stream) ?: stream,
+                    streamUrl = stream
+                )
+                active = restored
+                player.setMediaItem(MediaItem.fromUri(stream))
+                player.prepare()
+                val savedPosition = prefs.getLong("last_position", 0L)
+                if (savedPosition > 0L) player.seekTo(savedPosition)
+                recentlyPlayed.add(restored)
+            }
+        }
+    }
 
     fun play(track: MusicTrack) {
         active = track
+        if (resumeLast) prefs.edit()
+            .putString("last_id", track.id)
+            .putString("last_title", track.title)
+            .putString("last_artist", track.artist)
+            .putString("last_artwork", track.artworkUrl)
+            .putInt("last_duration", track.durationSeconds)
+            .putString("last_stream", track.streamUrl)
+            .putString("last_permalink", track.permalink)
+            .putLong("last_position", 0L)
+            .apply()
         recentlyPlayed.removeAll { it.id == track.id }
         recentlyPlayed.add(0, track)
         while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
