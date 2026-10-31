@@ -1393,7 +1393,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     TextButton(onClick = { sleepTimerMinutes = 0; showSleepTimer = false }) { Text("Cancel active timer") }
                 }
             },
-            confirmButton = { TextButton(onClick = { showSleepTimer = false }) { Text("Done") }
+            confirmButton = { TextButton(onClick = { showSleepTimer = false }) { Text("Done") } }
         )
     }
     if (showCreatePlaylist) {
