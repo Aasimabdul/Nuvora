@@ -690,7 +690,7 @@ private fun YouTubeEmbedScreen(
         }
         if (error != null) Text(error, color = Color(0xFFFFA6A6), fontSize = 12.sp)
         LazyColumn(
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.heightIn(max = 220.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(results, key = { it.videoId }) { result ->
