@@ -11,13 +11,16 @@ Nuvora is an Android music discovery and streaming app built with Kotlin, Jetpac
 - Spotify, SoundCloud and Bandcamp are external handoff sources in this build; they do not provide general-purpose stream URLs for Media3 playback.
 - Shared Media3 player with in-app controls, seek bar, and recently-played list.
 - Share/paste YouTube and YouTube Music links to find the corresponding video in Nuvora.
-- Favourites during the current app session, theme options, discovery cards, playlists tab, and downloads where a source provides a downloadable URL.
+- Persistent favourites, recent tracks and most-played counts; manual playlists can be created from individually selected search results and edited by adding selected tracks.
+- YouTube Music playlist search/import is best-effort through an undocumented public endpoint; imported public playlist tracks are stored in Nuvora's local library.
+- Floating mini-player, immersive Now Playing screen, seek/progress controls, queue navigation, shuffle, repeat, and a 15/30/45/60-minute sleep timer.
+- Downloads are shown only for sources that provide a direct stream URL; downloading is subject to the source's permissions and terms.
 
 ## Music source and playback support
 
 | Provider | Search | In-app playback | Notes |
 | --- | --- | --- | --- |
-| YouTube Music | Yes | Best-effort via NewPipe Extractor + Media3 | Unofficial; may break when YouTube changes its implementation. |
+| YouTube Music | Songs and best-effort public playlist search | Best-effort via NewPipe Extractor + Media3 | Unofficial; public playlists can be imported locally; some streams/playlists may fail when YouTube changes its implementation. |
 | Audius | Yes | Yes, for eligible public streams | Public API stream availability and rights are controlled by creators. |
 | JioSaavn | Yes | Best-effort for returned stream URLs | Community endpoint; not an official developer streaming API and may change. |
 | Spotify | External handoff | No | Public APIs do not expose general audio streams for custom playback. |
@@ -38,13 +41,14 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.4.0
+## Current development version: v0.5.0
 
-- Set YouTube Music as the default source, including for Home search.
-- Added in-app YouTube Music result playback by resolving a playable audio stream and passing it to Media3.
-- Added NewPipe Extractor as the open-source stream-resolution component.
-- Added result-level Play actions, upgraded preference migration, and a YouTube Music-specific search placeholder.
-- Preserved Audius, JioSaavn, themes, discovery, and existing navigation.
+- Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
+- Improved direct-stream HTTP headers and playback error/retry feedback. Playback remains best-effort because YouTube does not provide a general official public audio-stream API.
+- Added persistent library metadata, favourites, recent history, and most-played counts.
+- Added local playlist creation from manually selected tracks and playlist import attempts for public YouTube Music/JioSaavn playlists.
+- Restyled the source selector, floating glass mini-player/navigation, and Now Playing screen; added seek/progress, shuffle, repeat, queue navigation, and sleep timer.
+- Preserved Audius, JioSaavn, theme options, and the existing navigation.
 
 ## Third-party notices
 
