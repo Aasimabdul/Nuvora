@@ -28,10 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -118,7 +114,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
     var editingSource by remember { mutableStateOf(sourceUrl) }
-    var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius") ?: "Audius") }
+    var selectedProvider by remember { mutableStateOf(prefs.getString("music_provider", "Audius")?.takeUnless { it == "YouTube Music" } ?: "Audius") }
     var showProviders by remember { mutableStateOf(false) }
     var showThemes by remember { mutableStateOf(false) }
     var showMoodSection by remember { mutableStateOf(prefs.getBoolean("home_moods", true)) }
@@ -127,7 +123,12 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud", "Bandcamp")
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
+    var playlistQuery by remember { mutableStateOf("") }
+    var saavnPlaylists by remember { mutableStateOf<List<JioSaavnPlaylist>>(emptyList()) }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
+    val knownTracks = remember { mutableStateListOf<MusicTrack>() }
+    var youtubeResults by remember { mutableStateOf<List<YouTubeMusicResult>>(emptyList()) }
+    var selectedYouTubeLink by remember { mutableStateOf(sharedYouTubeLink) }
     val recentlyPlayed = remember { mutableStateListOf<MusicTrack>() }
     var favorites by remember { mutableStateOf<Set<String>>(emptySet()) }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
@@ -150,38 +151,42 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     fun search(term: String) {
         if (selectedProvider == "YouTube Music") {
             tracks = emptyList()
-            loading = false
-            error = "Paste a YouTube or YouTube Music video link below to play it in Nuvora's official embedded player."
-            return
-        }
-        if (selectedProvider != "Audius") {
-            tracks = emptyList()
-            loading = false
-            error = "$selectedProvider is an external handoff in this release; Nuvora cannot play this provider's streams directly."
-            val encoded = Uri.encode(term.ifBlank { "music" })
-            val targetUrl = when (selectedProvider) {
-                "YouTube Music" -> "https://music.youtube.com/search?q=$encoded"
-                "JioSaavn" -> "https://www.jiosaavn.com/search/$encoded"
-                "Spotify" -> "https://open.spotify.com/search/$encoded"
-                "SoundCloud" -> "https://soundcloud.com/search?q=$encoded"
-                "Bandcamp" -> "https://bandcamp.com/search?q=$encoded"
-                else -> null
+            if (term.isBlank()) {
+                youtubeResults = emptyList()
+                loading = false
+                error = "Enter a song or artist to search YouTube Music."
+                return
             }
-            if (targetUrl != null) {
+            loading = true
+            error = null
+            scope.launch {
                 try {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                    youtubeResults = YouTubeMusicRepository.search(term)
+                    error = if (youtubeResults.isEmpty()) "No YouTube Music results found."
+                        else "YouTube Music results are catalogue-only. Its official API does not provide native audio playback; choose Audius or JioSaavn to listen inside Nuvora."
                 } catch (_: Exception) {
-                    Toast.makeText(context, "Could not open $selectedProvider", Toast.LENGTH_SHORT).show()
+                    youtubeResults = emptyList()
+                    error = "YouTube Music catalogue search failed. The unofficial search endpoint may be unavailable; try again later."
+                } finally {
+                    loading = false
                 }
             }
+            return
+        }
+        if (selectedProvider != "Audius" && selectedProvider != "JioSaavn") {
+            tracks = emptyList()
+            youtubeResults = emptyList()
+            loading = false
+            error = "$selectedProvider does not provide native audio playback in this build. Choose Audius or JioSaavn."
             return
         }
         loading = true
         error = null
         scope.launch {
             try {
-                tracks = AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
-                if (tracks.isEmpty()) error = "No tracks found. Try another search."
+                tracks = if (selectedProvider == "JioSaavn") JioSaavnRepository.searchTracks(term) else AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
+                tracks.forEach { track -> if (knownTracks.none { it.id == track.id }) knownTracks.add(track) }
+                if (tracks.isEmpty()) error = "No playable tracks found. Try another search."
             } catch (e: Exception) {
                 error = "Could not load music. Check your internet and try again."
             } finally {
@@ -194,7 +199,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlayerError(error: PlaybackException) {
-                playerError = "This track could not play. Try another track."
+                playerError = "Playback failed (${error.errorCodeName}): ${error.message ?: "stream unavailable"}"
+                Toast.makeText(context, playerError, Toast.LENGTH_LONG).show()
             }
         }
         player.addListener(listener)
@@ -202,6 +208,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     }
 
     LaunchedEffect(sharedYouTubeLink) {
+        selectedYouTubeLink = sharedYouTubeLink
         if (!sharedYouTubeLink.isNullOrBlank() && extractYouTubeVideoId(sharedYouTubeLink) != null) {
             selectedProvider = "YouTube Music"
             prefs.edit().putString("music_provider", selectedProvider).apply()
@@ -217,7 +224,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         recentlyPlayed.add(0, track)
         while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
         playerError = null
-        player.setMediaItem(MediaItem.fromUri(track.streamUrl))
+        player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(track.streamUrl).build())
         player.prepare()
         player.play()
     }
@@ -280,8 +287,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         tonalElevation = 0.dp,
                         modifier = Modifier.height(64.dp)
                     ) {
-                        val labels = listOf("Home", "Search", "Library", "Settings")
-                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
+                        val labels = listOf("Home", "Search", "Playlists", "Settings")
+                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.QueueMusic, Icons.Rounded.Settings)
                         labels.forEachIndexed { index, label ->
                             NavigationBarItem(
                                 selected = tab == index,
@@ -325,7 +332,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
                             providers.forEach { provider ->
                                 DropdownMenuItem(
-                                    text = { Text(provider + if (provider == "Audius") " · In-app" else if (provider == "YouTube Music") " · Embedded" else " · Official app") },
+                                    text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app" else if (provider == "YouTube Music") " · Search only" else " · External") },
                                     leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
                                     onClick = {
                                         selectedProvider = provider
@@ -333,7 +340,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                         showProviders = false
                                         error = null
                                         tracks = emptyList()
-                                        if (provider == "Audius") {
+                                        if (provider == "Audius" || provider == "JioSaavn") {
                                             search(query.ifBlank { "electronic chill" })
                                         } else if (provider == "YouTube Music") {
                                             tab = 1
@@ -429,38 +436,93 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                            favorites = (if (track.id in favorites) favorites - track.id else favorites + track.id).also { prefs.edit().putStringSet("favorite_ids", it).apply() }
                         }, track.id in favorites, { downloadTrack(context, track) })
                     }
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
                 }
             }
-            1 -> if (selectedProvider == "YouTube Music") {
-                Column(Modifier.fillMaxSize().padding(insets)) { YouTubeEmbedScreen(sharedYouTubeLink) }
-            } else Column(Modifier.fillMaxSize().padding(insets)) {
+            1 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
                 SearchBar(query, { query = it }, { search(query) }, { search(query) })
                 StatusMessages(loading, error)
-                LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (selectedProvider == "YouTube Music") {
+                    LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(youtubeResults, key = { it.videoId }) { result ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Cover(result.artworkUrl, Modifier.size(54.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(result.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(result.artist, color = Muted, fontSize = 12.sp)
+                                    Text("Catalogue only · native audio unavailable", color = Cyan, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                            favorites = (if (track.id in favorites) favorites - track.id else favorites + track.id).also { prefs.edit().putStringSet("favorite_ids", it).apply() }
                         }, track.id in favorites, { downloadTrack(context, track) })
                     }
                 }
             }
             2 -> Column(Modifier.fillMaxSize().padding(insets)) {
-                Text("Your favourites", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
-                val saved = tracks.filter { it.id in favorites }
+                Text("Playlists", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
+                Text("Your saved tracks", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                val saved = knownTracks.filter { it.id in favorites }
                 if (saved.isEmpty()) {
-                    Text("Tap the heart beside a track to save it here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp))
+                    Text("Search Audius or JioSaavn and tap the heart to save tracks here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp)) {
                     items(saved, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             favorites = favorites - track.id
+                            prefs.edit().putStringSet("favorite_ids", favorites).apply()
                         }, true, { downloadTrack(context, track) })
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+                Text("JioSaavn playlists", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = playlistQuery, onValueChange = { playlistQuery = it }, modifier = Modifier.weight(1f), label = { Text("Search playlists") }, singleLine = true)
+                    IconButton(onClick = {
+                        scope.launch {
+                            loading = true
+                            error = null
+                            try { saavnPlaylists = JioSaavnRepository.searchPlaylists(playlistQuery); if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found." }
+                            catch (e: Exception) { error = "Could not load JioSaavn playlists: ${e.message ?: "API unavailable"}" }
+                            finally { loading = false }
+                        }
+                    }) { Icon(Icons.Rounded.Search, contentDescription = "Search JioSaavn playlists") }
+                }
+                LazyColumn(Modifier.weight(1f, fill = false).padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(saavnPlaylists, key = { it.id }) { playlist ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable {
+                            selectedProvider = "JioSaavn"
+                            prefs.edit().putString("music_provider", "JioSaavn").apply()
+                            scope.launch {
+                                loading = true
+                                error = null
+                                try {
+                                    tracks = JioSaavnRepository.getPlaylistTracks(playlist.id)
+                                    tracks.forEach { track -> if (knownTracks.none { it.id == track.id }) knownTracks.add(track) }
+                                    query = playlist.title
+                                    tab = 1
+                                    if (tracks.isEmpty()) error = "This playlist did not return playable tracks."
+                                } catch (e: Exception) { error = "Could not load playlist: ${e.message ?: "API unavailable"}" }
+                                finally { loading = false }
+                            }
+                        }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Cover(playlist.artworkUrl, Modifier.size(54.dp))
+                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(playlist.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = "Load playlist", tint = Cyan)
+                        }
+                    }
+                }
+                Text("YouTube Music playlist search/playback is not available through its official native audio API. No embedded player is included.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
             3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -515,7 +577,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
                         providers.forEach { provider ->
                             DropdownMenuItem(
-                                text = { Text(provider + if (provider == "Audius") " · In-app playback" else " · Open official service") },
+                                text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app playback" else " · Open official service") },
                                 leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
                                 onClick = {
                                     selectedProvider = provider
@@ -526,7 +588,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                         error = null
                                     }
                                     showProviders = false
-                                    Toast.makeText(context, if (provider == "Audius") "Audius in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, if (provider == "Audius" || provider == "JioSaavn") "$provider in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
@@ -536,7 +598,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     when (selectedProvider) {
                         "Audius" -> "IN-APP PLAYBACK · Search and stream available Audius tracks inside Nuvora using Media3. Availability depends on creator settings."
                         "YouTube Music" -> "IN-APP EMBEDDED VIDEO · Paste a YouTube/YouTube Music video link in Search to play it with the official YouTube embedded player. No audio extraction or background playback."
-                        "JioSaavn" -> "EXTERNAL ONLY · Opens the official JioSaavn service. No authorized direct-stream integration is configured."
+                        "JioSaavn" -> "IN-APP PLAYBACK · Uses a community API to search and stream available tracks. Endpoint availability may change."
                         "Spotify" -> "EXTERNAL ONLY · Opens Spotify. Its Android SDK can control the official Spotify app; it does not expose Spotify audio streams to Nuvora."
                         "SoundCloud" -> "EXTERNAL ONLY · Opens SoundCloud. In-app playback requires approved API credentials and compliance with SoundCloud's playback and attribution rules."
                         else -> "External service handoff."
@@ -623,85 +685,6 @@ private fun extractYouTubeVideoId(input: String): String? {
     val match = pattern.find(value) ?: return null
     return match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() }
         ?: match.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }
-}
-
-@Composable
-private fun YouTubeEmbedScreen(sharedYouTubeLink: String? = null) {
-    var videoUrl by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink.orEmpty()) }
-    var videoId by remember(sharedYouTubeLink) { mutableStateOf(sharedYouTubeLink?.let { extractYouTubeVideoId(it) }) }
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("YouTube Music", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Play an official YouTube video inside Nuvora. Find a song in YouTube Music, use Share → Copy link, then paste it here.", color = Muted, fontSize = 13.sp)
-        OutlinedTextField(
-            value = videoUrl,
-            onValueChange = { videoUrl = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("YouTube / YouTube Music link") },
-            placeholder = { Text("https://music.youtube.com/watch?v=…") },
-            singleLine = true
-        )
-        Button(
-            onClick = { videoId = extractYouTubeVideoId(videoUrl) },
-            modifier = Modifier.fillMaxWidth()
-        ) { Icon(Icons.Rounded.PlayArrow, contentDescription = null); Text("  Play in Nuvora") }
-        if (videoId == null && videoUrl.isNotBlank()) {
-            Text("Enter a valid YouTube video link or 11-character video ID.", color = Color(0xFFFFA6A6), fontSize = 12.sp)
-        }
-        Text("Official embedded playback · Internet required · YouTube controls and ads may appear. Audio-only and background playback are not provided.", color = Muted, fontSize = 12.sp)
-        videoId?.let { id ->
-            key(id) {
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth().height(240.dp),
-                    factory = { context ->
-                        WebView(context).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.mediaPlaybackRequiresUserGesture = true
-                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                            webViewClient = WebViewClient()
-                            val html = """
-                                <!doctype html>
-                                <html>
-                                  <head>
-                                    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-                                    <style>
-                                      html, body { margin:0; padding:0; width:100%; height:100%; background:#080D1A; overflow:hidden; }
-                                      iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
-                                    </style>
-                                  </head>
-                                  <body>
-                                    <iframe
-                                      src="https://www.youtube.com/embed/$id?playsinline=1&autoplay=0&rel=0"
-                                      title="YouTube video player"
-                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                      referrerpolicy="strict-origin-when-cross-origin"
-                                      allowfullscreen>
-                                    </iframe>
-                                  </body>
-                                </html>
-                            """.trimIndent()
-                            loadDataWithBaseURL(
-                                "https://www.youtube.com/",
-                                html,
-                                "text/html",
-                                "UTF-8",
-                                null
-                            )
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Header() {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 10.dp)) {
-        Text("NUVORA", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-        Text("Find your frequency.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Discover independent music.", color = Muted, fontSize = 13.sp)
-    }
 }
 
 @Composable
