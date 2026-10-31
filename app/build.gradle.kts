@@ -31,7 +31,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.9.0")
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:f9e6bb808f82bf3e4dc1f2a29a16fd376931c8ef")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
     implementation("androidx.media3:media3-exoplayer:1.6.1")
     implementation("androidx.media3:media3-session:1.6.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
