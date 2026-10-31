@@ -42,12 +42,12 @@ jobs:
           if-no-files-found: error
 
       - name: Publish APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora v0.3.7'))
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora v0.3.6'))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.3.7
+          tag_name: v0.3.6
           target_commitish: main
-          name: Nuvora v0.3.7
-          body: "Nuvora v0.3.7 adds local audio library scanning, excluded-folder filtering, playback preferences, sleep timer, cache clearing, and About/open-source credits. Audius streaming and local audio play in-app; other providers depend on official API permissions. Debug APK for testing."
+          name: Nuvora v0.3.6
+          body: "Nuvora v0.3.6 adds a personalized greeting, mood cards, recently played tracks, horizontal music discovery cards, saved home-section toggles, and the floating minimal player UI. Audius Media3 playback remains supported. YouTube is limited to official embedded video playback. Debug APK for testing."
           files: Nuvora-debug.apk
           generate_release_notes: true
