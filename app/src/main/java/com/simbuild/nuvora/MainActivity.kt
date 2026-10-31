@@ -333,7 +333,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                         showProviders = false
                                         error = null
                                         tracks = emptyList()
-                                        if (provider == "Audius") {
+                                        if (provider == "Audius" || provider == "JioSaavn") {
                                             search(query.ifBlank { "electronic chill" })
                                         } else if (provider == "YouTube Music") {
                                             tab = 1
@@ -515,7 +515,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     DropdownMenu(expanded = showProviders, onDismissRequest = { showProviders = false }) {
                         providers.forEach { provider ->
                             DropdownMenuItem(
-                                text = { Text(provider + if (provider == "Audius") " · In-app playback" else " · Open official service") },
+                                text = { Text(provider + if (provider == "Audius" || provider == "JioSaavn") " · In-app playback" else " · Open official service") },
                                 leadingIcon = { if (provider == selectedProvider) Icon(Icons.Rounded.Check, contentDescription = null) },
                                 onClick = {
                                     selectedProvider = provider
@@ -526,7 +526,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                         error = null
                                     }
                                     showProviders = false
-                                    Toast.makeText(context, if (provider == "Audius") "Audius in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, if (provider == "Audius" || provider == "JioSaavn") "$provider in-app playback selected" else "$provider opens its official app or website", Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
