@@ -286,8 +286,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         tonalElevation = 0.dp,
                         modifier = Modifier.height(64.dp)
                     ) {
-                        val labels = listOf("Home", "Search", "Library", "Settings")
-                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.Favorite, Icons.Rounded.Settings)
+                        val labels = listOf("Home", "Search", "Playlists", "Settings")
+                        val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.QueueMusic, Icons.Rounded.Settings)
                         labels.forEachIndexed { index, label ->
                             NavigationBarItem(
                                 selected = tab == index,
@@ -441,20 +441,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
                 }
             }
-            1 -> if (selectedProvider == "YouTube Music") {
-                Column(Modifier.fillMaxSize().padding(insets)) {
-                    YouTubeEmbedScreen(
-                        selectedYouTubeLink = selectedYouTubeLink,
-                        query = query,
-                        onQueryChange = { query = it },
-                        results = youtubeResults,
-                        loading = loading,
-                        error = error,
-                        onSearch = { search(query) },
-                        onSelectResult = { result -> selectedYouTubeLink = result.watchUrl }
-                    )
-                }
-            } else Column(Modifier.fillMaxSize().padding(insets)) {
+            1 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
                 SearchBar(query, { query = it }, { search(query) }, { search(query) })
                 StatusMessages(loading, error)
@@ -467,16 +454,25 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
             2 -> Column(Modifier.fillMaxSize().padding(insets)) {
-                Text("Your favourites", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
+                Text("Playlists", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
+                Text("Your saved tracks", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                 val saved = tracks.filter { it.id in favorites }
                 if (saved.isEmpty()) {
-                    Text("Tap the heart beside a track to save it here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp))
+                    Text("Search Audius or JioSaavn and tap the heart to save tracks here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp)) {
                     items(saved, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             favorites = favorites - track.id
+                            prefs.edit().putStringSet("favorite_ids", favorites).apply()
                         }, true, { downloadTrack(context, track) })
                     }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Provider playlists", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                Text("JioSaavn tracks can be searched and played in-app. Native YouTube Music playlists/audio aren't supported by its official API; no embedded player is used.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                OutlinedButton(onClick = { selectedProvider = "JioSaavn"; prefs.edit().putString("music_provider", "JioSaavn").apply(); tab = 1; search(query.ifBlank { "music" }) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                    Icon(Icons.Rounded.Search, contentDescription = null)
+                    Text("  Search JioSaavn")
                 }
             }
             3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
