@@ -129,7 +129,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
     var editingSource by remember { mutableStateOf(sourceUrl) }
     var selectedProvider by remember {
-        val initialProvider = if (!prefs.getBoolean("default_provider_migrated_v040", false)) {
+        val initialProvider = if (!prefs.getBoolean("default_provider_migrated_v041", false)) {
             prefs.edit()
                 .putString("music_provider", "YouTube Music")
                 .putBoolean("default_provider_migrated_v040", true)
@@ -385,7 +385,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             providers.forEach { provider ->
                                 DropdownMenuItem(
                                     text = { Text(provider + when (provider) {
-                                        "YouTube Music" -> " · In-app audio"
+                                        "YouTube Music" -> " · In-app audio (best-effort)"
                                         "Audius", "JioSaavn" -> " · In-app"
                                         else -> " · External"
                                     }) },
@@ -594,7 +594,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         }
                     }
                 }
-                Text("YouTube Music playlist search/playback is not available through its official native audio API. No embedded player is included.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                Text("YouTube Music song search and best-effort in-app audio playback are available from Home or Search. YouTube Music playlists are not implemented yet.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
             3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -669,7 +669,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 Text(
                     when (selectedProvider) {
                         "Audius" -> "IN-APP PLAYBACK · Search and stream available Audius tracks inside Nuvora using Media3. Availability depends on creator settings."
-                        "YouTube Music" -> "IN-APP EMBEDDED VIDEO · Paste a YouTube/YouTube Music video link in Search to play it with the official YouTube embedded player. No audio extraction or background playback."
+                        "YouTube Music" -> "IN-APP AUDIO · Search results resolve through NewPipe Extractor and play with Media3 when YouTube provides a compatible public audio stream. Some videos may fail."
                         "JioSaavn" -> "IN-APP PLAYBACK · Uses a community API to search and stream available tracks. Endpoint availability may change."
                         "Spotify" -> "EXTERNAL ONLY · Opens Spotify. Its Android SDK can control the official Spotify app; it does not expose Spotify audio streams to Nuvora."
                         "SoundCloud" -> "EXTERNAL ONLY · Opens SoundCloud. In-app playback requires approved API credentials and compliance with SoundCloud's playback and attribution rules."
