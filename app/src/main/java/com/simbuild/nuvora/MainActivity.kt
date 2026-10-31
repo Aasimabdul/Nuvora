@@ -123,6 +123,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud", "Bandcamp")
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
+    var playlistQuery by remember { mutableStateOf("") }
+    var saavnPlaylists by remember { mutableStateOf<List<JioSaavnPlaylist>>(emptyList()) }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
     val knownTracks = remember { mutableStateListOf<MusicTrack>() }
     var youtubeResults by remember { mutableStateOf<List<YouTubeMusicResult>>(emptyList()) }
@@ -480,12 +482,47 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     }
                 }
                 Spacer(Modifier.height(16.dp))
-                Text("Provider playlists", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                Text("JioSaavn tracks can be searched and played in-app. Native YouTube Music playlists/audio aren't supported by its official API; no embedded player is used.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                OutlinedButton(onClick = { selectedProvider = "JioSaavn"; prefs.edit().putString("music_provider", "JioSaavn").apply(); tab = 1; search(query.ifBlank { "music" }) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    Icon(Icons.Rounded.Search, contentDescription = null)
-                    Text("  Search JioSaavn")
+                Text("JioSaavn playlists", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = playlistQuery, onValueChange = { playlistQuery = it }, modifier = Modifier.weight(1f), label = { Text("Search playlists") }, singleLine = true)
+                    IconButton(onClick = {
+                        scope.launch {
+                            loading = true
+                            error = null
+                            try { saavnPlaylists = JioSaavnRepository.searchPlaylists(playlistQuery); if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found." }
+                            catch (e: Exception) { error = "Could not load JioSaavn playlists: ${e.message ?: "API unavailable"}" }
+                            finally { loading = false }
+                        }
+                    }) { Icon(Icons.Rounded.Search, contentDescription = "Search JioSaavn playlists") }
                 }
+                LazyColumn(Modifier.weight(1f, fill = false).padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(saavnPlaylists, key = { it.id }) { playlist ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable {
+                            selectedProvider = "JioSaavn"
+                            prefs.edit().putString("music_provider", "JioSaavn").apply()
+                            scope.launch {
+                                loading = true
+                                error = null
+                                try {
+                                    tracks = JioSaavnRepository.getPlaylistTracks(playlist.id)
+                                    tracks.forEach { track -> if (knownTracks.none { it.id == track.id }) knownTracks.add(track) }
+                                    query = playlist.title
+                                    tab = 1
+                                    if (tracks.isEmpty()) error = "This playlist did not return playable tracks."
+                                } catch (e: Exception) { error = "Could not load playlist: ${e.message ?: "API unavailable"}" }
+                                finally { loading = false }
+                            }
+                        }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Cover(playlist.artworkUrl, Modifier.size(54.dp))
+                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(playlist.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = "Load playlist", tint = Cyan)
+                        }
+                    }
+                }
+                Text("YouTube Music playlist search/playback is not available through its official native audio API. No embedded player is included.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
             3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
