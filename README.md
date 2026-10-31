@@ -41,7 +41,7 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.5.0
+## Current development version: v0.5.1
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
 - Improved direct-stream HTTP headers and playback error/retry feedback. Playback remains best-effort because YouTube does not provide a general official public audio-stream API.
