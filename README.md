@@ -56,3 +56,12 @@ This is an early release. Verify search, playback, theme persistence, and downlo
 - Added Settings toggles to show or hide mood cards, recently played, and the horizontal carousel on Home.
 - Preserved existing music-source selection, themes, favourites, downloads, floating mini-player, and navigation.
 - YouTube remains limited to the official embedded player; native audio-only/background playback is not supported by the official YouTube API.
+
+## v0.3.7
+- Real playback queue: next/previous work across the current list, plus shuffle and repeat (off/all/one) on the Now Playing screen.
+- Now Playing now has a seek bar with elapsed/total time and Save/Download buttons.
+- Favourites are saved on the device and no longer disappear when you search again.
+- Light theme now uses theme-aware surface and text colours instead of dark panels.
+- Active track is highlighted in lists; search box has a clear button; Settings scrolls on small screens; system Back returns Home from other tabs.
+- YouTube embedded player screen has a Paste button and rounded player.
+- Provider policy unchanged: no unofficial audio extraction (YouTube Music stays embedded-only; JioSaavn stays external-only).
