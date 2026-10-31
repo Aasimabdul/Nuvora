@@ -332,7 +332,6 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                     onValueChange = { positionMs = (it * durationMs).toLong() },
                                     onValueChangeFinished = { player.seekTo(positionMs) },
                                     modifier = Modifier.fillMaxWidth().height(18.dp),
-                                    thumb = { SliderDefaults.Thumb(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, colors = SliderDefaults.colors(thumbColor = Cyan)) },
                                     colors = SliderDefaults.colors(
                                         thumbColor = Cyan,
                                         activeTrackColor = Cyan,
