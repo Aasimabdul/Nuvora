@@ -443,10 +443,23 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
                 SearchBar(query, { query = it }, { search(query) }, { search(query) })
                 StatusMessages(loading, error)
-                LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (selectedProvider == "YouTube Music") {
+                    LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(youtubeResults, key = { it.videoId }) { result ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Cover(result.artworkUrl, Modifier.size(54.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(result.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(result.artist, color = Muted, fontSize = 12.sp)
+                                    Text("Catalogue only · native audio unavailable", color = Cyan, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
-                            favorites = if (track.id in favorites) favorites - track.id else favorites + track.id
+                            favorites = (if (track.id in favorites) favorites - track.id else favorites + track.id).also { prefs.edit().putStringSet("favorite_ids", it).apply() }
                         }, track.id in favorites, { downloadTrack(context, track) })
                     }
                 }
