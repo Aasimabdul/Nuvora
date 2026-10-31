@@ -28,10 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -128,6 +124,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
+    val knownTracks = remember { mutableStateListOf<MusicTrack>() }
     var youtubeResults by remember { mutableStateOf<List<YouTubeMusicResult>>(emptyList()) }
     var selectedYouTubeLink by remember { mutableStateOf(sharedYouTubeLink) }
     val recentlyPlayed = remember { mutableStateListOf<MusicTrack>() }
@@ -186,7 +183,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         scope.launch {
             try {
                 tracks = if (selectedProvider == "JioSaavn") JioSaavnRepository.searchTracks(term) else AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
-                if (tracks.isEmpty()) error = "No tracks found. Try another search."
+                tracks.forEach { track -> if (knownTracks.none { it.id == track.id }) knownTracks.add(track) }
+                if (tracks.isEmpty()) error = "No playable tracks found. Try another search."
             } catch (e: Exception) {
                 error = "Could not load music. Check your internet and try again."
             } finally {
@@ -456,7 +454,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             2 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Text("Playlists", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
                 Text("Your saved tracks", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                val saved = tracks.filter { it.id in favorites }
+                val saved = knownTracks.filter { it.id in favorites }
                 if (saved.isEmpty()) {
                     Text("Search Audius or JioSaavn and tap the heart to save tracks here.", color = Muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp)) {
@@ -636,131 +634,6 @@ private fun extractYouTubeVideoId(input: String): String? {
     val match = pattern.find(value) ?: return null
     return match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() }
         ?: match.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }
-}
-
-@Composable
-private fun YouTubeEmbedScreen(
-    selectedYouTubeLink: String?,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    results: List<YouTubeMusicResult>,
-    loading: Boolean,
-    error: String?,
-    onSearch: () -> Unit,
-    onSelectResult: (YouTubeMusicResult) -> Unit
-) {
-    var videoUrl by remember(selectedYouTubeLink) { mutableStateOf(selectedYouTubeLink.orEmpty()) }
-    var videoId by remember(selectedYouTubeLink) { mutableStateOf(selectedYouTubeLink?.let { extractYouTubeVideoId(it) }) }
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("YouTube Music", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Search the catalogue inside Nuvora, then play a selected result using YouTube's official embedded player.", color = Muted, fontSize = 13.sp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
-                label = { Text("Song or artist") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() })
-            )
-            IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, contentDescription = "Search YouTube Music") }
-        }
-        if (loading) Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            Text("Searching YouTube Music…", color = Muted, modifier = Modifier.padding(start = 8.dp))
-        }
-        if (error != null) Text(error, color = Color(0xFFFFA6A6), fontSize = 12.sp)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 220.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(results, key = { it.videoId }) { result ->
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                        .background(Panel).clickable { onSelectResult(result) }.padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Cover(result.artworkUrl, Modifier.size(54.dp))
-                    Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                        Text(result.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(result.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (result.durationLabel.isNotBlank()) Text(result.durationLabel, color = Cyan, fontSize = 10.sp)
-                    }
-                    Icon(Icons.Rounded.PlayArrow, contentDescription = "Play ${result.title}", tint = Cyan)
-                }
-            }
-        }
-        OutlinedTextField(
-            value = videoUrl,
-            onValueChange = { videoUrl = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Or paste a YouTube video link") },
-            placeholder = { Text("https://music.youtube.com/watch?v=…") },
-            singleLine = true
-        )
-        Button(
-            onClick = { videoId = extractYouTubeVideoId(videoUrl) },
-            modifier = Modifier.fillMaxWidth()
-        ) { Icon(Icons.Rounded.PlayArrow, contentDescription = null); Text("  Play official video") }
-        if (videoId == null && videoUrl.isNotBlank()) {
-            Text("Enter a valid YouTube video link or 11-character video ID.", color = Color(0xFFFFA6A6), fontSize = 12.sp)
-        }
-        Text("Official embedded playback · Internet required · YouTube controls and ads may appear. Audio-only and background playback are not provided.", color = Muted, fontSize = 12.sp)
-        videoId?.let { id ->
-            key(id) {
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth().height(240.dp),
-                    factory = { context ->
-                        WebView(context).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.mediaPlaybackRequiresUserGesture = true
-                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                            webViewClient = WebViewClient()
-                            val html = """
-                                <!doctype html>
-                                <html>
-                                  <head>
-                                    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-                                    <style>
-                                      html, body { margin:0; padding:0; width:100%; height:100%; background:#080D1A; overflow:hidden; }
-                                      iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
-                                    </style>
-                                  </head>
-                                  <body>
-                                    <iframe
-                                      src="https://www.youtube.com/embed/$id?playsinline=1&autoplay=0&rel=0"
-                                      title="YouTube video player"
-                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                      referrerpolicy="strict-origin-when-cross-origin"
-                                      allowfullscreen>
-                                    </iframe>
-                                  </body>
-                                </html>
-                            """.trimIndent()
-                            loadDataWithBaseURL(
-                                "https://www.youtube.com/",
-                                html,
-                                "text/html",
-                                "UTF-8",
-                                null
-                            )
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Header() {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 10.dp)) {
-        Text("NUVORA", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-        Text("Find your frequency.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Discover independent music.", color = Muted, fontSize = 13.sp)
-    }
 }
 
 @Composable
