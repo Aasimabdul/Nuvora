@@ -84,9 +84,9 @@ object YouTubeMusicRepository {
     }
 
     private fun parseRenderer(renderer: JSONObject): YouTubeMusicResult? {
-        val videoId = renderer.optString("videoId").takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }
-            ?: renderer.optJSONObject("playlistItemData")?.optString("videoId")
-                ?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }
+        // YouTube Music search results often nest the ID under
+        // navigationEndpoint.watchEndpoint rather than exposing renderer.videoId.
+        val videoId = findVideoId(renderer)
             ?: return null
 
         val flexColumns = renderer.optJSONArray("flexColumns")
@@ -123,6 +123,29 @@ object YouTubeMusicRepository {
             durationLabel = duration,
             watchUrl = "https://music.youtube.com/watch?v=$videoId"
         )
+    }
+
+
+    private fun findVideoId(value: Any?): String? {
+        when (value) {
+            is JSONObject -> {
+                val direct = value.optString("videoId")
+                    .takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }
+                if (direct != null) return direct
+                val keys = value.keys()
+                while (keys.hasNext()) {
+                    val found = findVideoId(value.opt(keys.next()))
+                    if (found != null) return found
+                }
+            }
+            is JSONArray -> {
+                for (i in 0 until value.length()) {
+                    val found = findVideoId(value.opt(i))
+                    if (found != null) return found
+                }
+            }
+        }
+        return null
     }
 
     private fun firstText(node: JSONObject?): String? {
