@@ -19,6 +19,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Read app version
+        id: app_version
+        shell: bash
+        run: |
+          VERSION_NAME=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)
+          if [ -z "$VERSION_NAME" ]; then
+            echo "::error::Unable to read versionName from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "version=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -65,9 +76,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora'))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.5.5' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.app_version.outputs.version) }}
           target_commitish: main
-          name: Nuvora ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.5.5' }}
-          body: "Nuvora v0.5.5 refreshes the Home header, adds provider artwork to source selection, and enlarges the floating mini-player. Debug APK for testing; verify provider playback on a real Android device."
+          name: Nuvora ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.app_version.outputs.version) }}
+          body: "Nuvora Android debug APK for testing. Provider playback may depend on third-party service availability; validate playback on a real Android device."
           files: Nuvora-debug.apk
           generate_release_notes: true
