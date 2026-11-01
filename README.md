@@ -41,7 +41,15 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.5.5
+## Current version: v0.5.7
+
+### v0.5.7 startup stability and release automation
+
+- Defers the optional notification permission prompt until the first UI view is attached.
+- Defers Media3 MediaSession binding until after the initial UI setup, so a session-connection failure does not block the local player screen.
+- Makes MediaSession startup failures visible in Logcat while keeping local playback available, and guards player cleanup during partial Activity initialization.
+- Updates the GitHub Actions release workflow to derive the tag and release name from `versionName`, avoiding stale hardcoded release tags.
+- This is a defensive startup fix based on static source review. A device-specific crash cannot be confirmed without the affected APK's Logcat stack trace; verify cold launch on a physical Android device.
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
 - Fixed nested YouTube Music thumbnail parsing, added YouTube video-thumbnail fallbacks, normalized CDN image URLs, improved image-load fallbacks, and migrated saved YouTube tracks that lacked artwork.
