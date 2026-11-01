@@ -202,11 +202,9 @@ object YouTubeMusicPlaylistsRepository {
             ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("musicThumbnailRenderer")
                 ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
             ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
-        val artwork = thumbnails?.let { array ->
-            (array.length() - 1 downTo 0).firstNotNullOfOrNull { index ->
-                normalizeArtworkUrl(array.optJSONObject(index)?.optString("url"))
-            }
-        } ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+        // Use a stable thumbnail URL for playlist tracks too; nested InnerTube
+        // thumbnail URLs can be missing or fail to load in Coil on some devices.
+        val artwork = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
         val durationLabel = text(renderer.optJSONObject("lengthText")).orEmpty()
         val duration = durationLabel.split(":").mapNotNull { it.toIntOrNull() }
             .fold(0) { total, part -> total * 60 + part }
