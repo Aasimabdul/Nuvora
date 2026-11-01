@@ -41,7 +41,7 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.5.3
+## Current development version: v0.5.5
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
 - Fixed nested YouTube Music thumbnail parsing, added YouTube video-thumbnail fallbacks, normalized CDN image URLs, improved image-load fallbacks, and migrated saved YouTube tracks that lacked artwork.
@@ -108,6 +108,14 @@ The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtra
 - Added a short crossfade transition when switching main screens.
 - Removed fixed dark navy colors from the mini-player gradient, Now Playing backdrop and active track row so Light/Pearl themes use their own Material color scheme.
 - Uses theme-aware play icon contrast via `onPrimary`.
+
+## v0.5.5 UI polish
+
+- Removed the “Find your frequency” headline and its repeated greeting to make Home more compact.
+- Updated the Nuvora wordmark so “NU” uses cyan blue while “VORA” follows the active theme text colour.
+- Added provider-specific favicon artwork to the audio-source selector.
+- Increased the floating mini-player artwork, song typography, padding and seek-bar height for easier touch interaction.
+- Kept existing provider selection, playback flow, navigation and theme architecture intact.
 
 ## v0.5.4
 - Audius Home now uses the official trending endpoint instead of a search for "electronic chill".
