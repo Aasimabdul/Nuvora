@@ -105,19 +105,8 @@ object YouTubeMusicRepository {
             .ifBlank { "YouTube Music" }
 
         // YouTube Music nests artwork under thumbnail.musicThumbnailRenderer.thumbnail.
-        val thumbs = renderer.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
-            ?: renderer.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
-                ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
-            ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("musicThumbnailRenderer")
-                ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
-            ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
-        val parsedArtwork = thumbs?.let { array ->
-            (array.length() - 1 downTo 0).firstNotNullOfOrNull { index ->
-                normalizeArtworkUrl(array.optJSONObject(index)?.optString("url"))
-            }
-        }
-        // Prefer YouTube's stable video-thumbnail endpoint. InnerTube artwork URLs
-        // may be absent, oddly nested, or inaccessible to Coil on some devices.
+        // Use a predictable video thumbnail URL instead of a changing InnerTube
+        // thumbnail tree; this works for search cards, recent history and the player.
         val artwork = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
         val duration = renderer.optJSONObject("lengthText")?.optString("simpleText")
             ?: renderer.optJSONObject("lengthText")?.let(::firstText)
