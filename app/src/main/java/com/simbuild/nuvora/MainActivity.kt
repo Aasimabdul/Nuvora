@@ -14,6 +14,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +43,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -44,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -97,6 +105,7 @@ private val themes = listOf(
 )
 
 private data class LocalPlaylist(val id: String, val name: String, val trackIds: List<String>)
+private data class EqPreset(val name: String, val levels: List<Int>)
 
 private fun YouTubeMusicResult.toMusicTrack(): MusicTrack {
     val duration = durationLabel.split(":").mapNotNull { it.toIntOrNull() }
@@ -220,16 +229,30 @@ private fun explainPlaybackFailure(error: PlaybackException): String {
 private fun downloadTrack(context: Context, track: MusicTrack) {
     try {
         val safeTitle = track.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(70).ifBlank { "Nuvora track" }
-        val request = DownloadManager.Request(Uri.parse(track.streamUrl))
+        val audioUri = Uri.parse(track.streamUrl)
+        require(audioUri.scheme.equals("https", ignoreCase = true) && !audioUri.host.isNullOrBlank()) { "No downloadable audio URL" }
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val request = DownloadManager.Request(audioUri)
             .setTitle(safeTitle)
             .setDescription("Downloading with Nuvora")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "Nuvora/$safeTitle.mp3")
-        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         manager.enqueue(request)
-        Toast.makeText(context, "Download started: $safeTitle", Toast.LENGTH_SHORT).show()
+        val artwork = normalizeArtworkUrl(track.artworkUrl)
+        if (!artwork.isNullOrBlank() && artwork.startsWith("https://", ignoreCase = true)) runCatching {
+            val artworkRequest = DownloadManager.Request(Uri.parse(artwork))
+                .setTitle("$safeTitle artwork")
+                .setDescription("Saving Nuvora artwork")
+                .setMimeType("image/jpeg")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(false)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_PICTURES, "Nuvora/Artwork/$safeTitle.jpg")
+            manager.enqueue(artworkRequest)
+        }
+        Toast.makeText(context, "Downloading audio and available artwork: $safeTitle", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
         Toast.makeText(context, "Could not start download", Toast.LENGTH_SHORT).show()
     }
@@ -258,7 +281,13 @@ private fun MusicTrack.toServiceMediaItem(): MediaItem {
 
 private fun speedLabel(v: Float): String = if (v == v.toInt().toFloat()) "${v.toInt()}x" else "${v}x"
 
-private class QueueActions(val playNext: (MusicTrack) -> Unit, val addToQueue: (MusicTrack) -> Unit)
+private class QueueActions(
+    val playNext: (MusicTrack) -> Unit,
+    val addToQueue: (MusicTrack) -> Unit,
+    val download: (MusicTrack) -> Unit,
+    val addToPlaylist: (MusicTrack) -> Unit,
+    val openEqualizer: () -> Unit
+)
 
 private val LocalQueueActions = compositionLocalOf<QueueActions?> { null }
 
@@ -397,6 +426,33 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     val selectedTrackIds = remember { mutableStateListOf<String>() }
     var showCreatePlaylist by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
+    var trackForPlaylist by remember { mutableStateOf<MusicTrack?>(null) }
+    var playlistNameForTrack by remember { mutableStateOf("") }
+    var showEqualizer by remember { mutableStateOf(false) }
+    var showNowPlayingMenu by remember { mutableStateOf(false) }
+    var customSleepMinutes by remember { mutableStateOf("30") }
+    var eqEnabled by remember { mutableStateOf(prefs.getBoolean("eq_enabled", false)) }
+    val eqLevels = remember {
+        mutableStateListOf<Int>().apply {
+            val stored = prefs.getString("eq_levels", null).orEmpty().split(",").mapNotNull { it.toIntOrNull() }
+            addAll((0 until 5).map { stored.getOrNull(it)?.coerceIn(-12, 12) ?: 0 })
+        }
+    }
+    var eqPresetName by remember { mutableStateOf("") }
+    val customEqPresets = remember {
+        mutableStateListOf<EqPreset>().apply {
+            val raw = prefs.getString("eq_custom_presets", null)
+            if (!raw.isNullOrBlank()) runCatching {
+                val array = JSONArray(raw)
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val name = item.optString("name").takeIf { it.isNotBlank() } ?: continue
+                    val bands = item.optJSONArray("levels") ?: continue
+                    add(EqPreset(name, (0 until 5).map { bands.optInt(it, 0).coerceIn(-12, 12) }))
+                }
+            }
+        }
+    }
     var expandedPlaylistId by remember { mutableStateOf<String?>(null) }
     var playlistProvider by remember { mutableStateOf("YouTube Music") }
     var youtubePlaylists by remember { mutableStateOf<List<YouTubeMusicPlaylist>>(emptyList()) }
@@ -429,6 +485,10 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         }
     }
 
+    LaunchedEffect(eqEnabled, eqLevels.toList(), servicePlayer) {
+        PlaybackBridge.applyEqualizer?.invoke(eqEnabled, eqLevels.map { (it * 100).toShort() })
+    }
+
     LaunchedEffect(sleepTimerMinutes) {
         if (sleepTimerMinutes > 0) {
             kotlinx.coroutines.delay(sleepTimerMinutes * 60_000L)
@@ -454,6 +514,36 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     fun toggleTrackSelection(track: MusicTrack) {
         rememberTrack(track)
         if (track.id in selectedTrackIds) selectedTrackIds.remove(track.id) else selectedTrackIds.add(track.id)
+    }
+
+    fun addTrackToPlaylist(track: MusicTrack, playlistId: String) {
+        rememberTrack(track)
+        val index = localPlaylists.indexOfFirst { it.id == playlistId }
+        if (index < 0) return
+        val playlist = localPlaylists[index]
+        localPlaylists[index] = playlist.copy(trackIds = (playlist.trackIds + track.id).distinct())
+        prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
+        trackForPlaylist = null
+        Toast.makeText(context, "Added to ${playlist.name}", Toast.LENGTH_SHORT).show()
+    }
+
+    fun applyEqPreset(levels: List<Int>) {
+        for (i in 0 until 5) eqLevels[i] = levels.getOrNull(i)?.coerceIn(-12, 12) ?: 0
+        eqEnabled = true
+        prefs.edit().putString("eq_levels", eqLevels.joinToString(",")).putBoolean("eq_enabled", true).apply()
+    }
+
+    fun saveEqPreset(name: String) {
+        val clean = name.trim().take(30)
+        if (clean.isBlank()) return
+        customEqPresets.removeAll { it.name.equals(clean, ignoreCase = true) }
+        customEqPresets.add(0, EqPreset(clean, eqLevels.toList()))
+        val json = JSONArray().apply {
+            customEqPresets.forEach { preset -> put(JSONObject().put("name", preset.name).put("levels", JSONArray(preset.levels))) }
+        }
+        prefs.edit().putString("eq_custom_presets", json.toString()).apply()
+        eqPresetName = ""
+        Toast.makeText(context, "Saved equalizer preset: $clean", Toast.LENGTH_SHORT).show()
     }
 
     fun createLocalPlaylist(name: String) {
@@ -723,7 +813,12 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         }
     }
 
-    CompositionLocalProvider(LocalQueueActions provides QueueActions({ playNext(it) }, { addToQueue(it) })) {
+    CompositionLocalProvider(LocalQueueActions provides QueueActions(
+        { playNext(it) }, { addToQueue(it) },
+        { track -> if (track.id.startsWith("youtube-")) Toast.makeText(context, "Direct downloads unavailable for this YouTube Music item.", Toast.LENGTH_SHORT).show() else downloadTrack(context, track) },
+        { track -> trackForPlaylist = track; playlistNameForTrack = "" },
+        { showEqualizer = true }
+    )) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
@@ -1457,13 +1552,23 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 }
                 HorizontalDivider()
                 Text("Downloads", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                Text("Tap the download icon beside a track. Files are saved in Music/Nuvora and the Android download notification shows progress.", fontSize = 13.sp)
+                Text("Use More ⋮ on a track to download audio and available artwork. Audio is saved to Music/Nuvora; artwork is stored separately in Pictures/Nuvora/Artwork.", fontSize = 13.sp)
                 Text("Note: downloads depend on the selected provider's stream and usage permissions.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
             else -> active?.let { track ->
+                val ambientShift by rememberInfiniteTransition(label = "player-ambient").animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(animation = tween(9000, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+                    label = "ambient-shift"
+                )
                 Column(
                     Modifier.fillMaxSize().padding(insets)
-                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, Color(0xFF111A31), MaterialTheme.colorScheme.background)))
+                        .background(Brush.linearGradient(
+                            colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), Color(0xFF111A31), MaterialTheme.colorScheme.secondary.copy(alpha = 0.09f), MaterialTheme.colorScheme.background),
+                            start = Offset(ambientShift * 460f, ambientShift * 160f),
+                            end = Offset(900f - ambientShift * 260f, 1700f)
+                        ))
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -1479,6 +1584,17 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         IconButton(onClick = { toggleFavorite(track) }) {
                             Icon(if (track.id in favorites) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                                 contentDescription = "Favourite", tint = if (track.id in favorites) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Box {
+                            IconButton(onClick = { showNowPlayingMenu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More player options") }
+                            DropdownMenu(expanded = showNowPlayingMenu, onDismissRequest = { showNowPlayingMenu = false }) {
+                                DropdownMenuItem(text = { Text("Add to queue") }, leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, null) }, onClick = { showNowPlayingMenu = false; addToQueue(track) })
+                                DropdownMenuItem(text = { Text("Add to playlist") }, leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) }, onClick = { showNowPlayingMenu = false; trackForPlaylist = track; playlistNameForTrack = "" })
+                                DropdownMenuItem(text = { Text("Equalizer") }, leadingIcon = { Icon(Icons.Rounded.GraphicEq, null) }, onClick = { showNowPlayingMenu = false; showEqualizer = true })
+                                DropdownMenuItem(text = { Text("Sleep timer") }, leadingIcon = { Icon(Icons.Rounded.Timer, null) }, onClick = { showNowPlayingMenu = false; customSleepMinutes = "30"; showSleepTimer = true })
+                                DropdownMenuItem(text = { Text("Show queue") }, leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) }, onClick = { showNowPlayingMenu = false; showQueue = true })
+                                DropdownMenuItem(text = { Text("Download audio") }, leadingIcon = { Icon(Icons.Rounded.Download, null) }, onClick = { showNowPlayingMenu = false; if (track.id.startsWith("youtube-")) Toast.makeText(context, "Direct downloads unavailable for this YouTube Music item.", Toast.LENGTH_SHORT).show() else downloadTrack(context, track) })
+                            }
                         }
                     }
                     Spacer(Modifier.height(14.dp))
@@ -1729,6 +1845,14 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Pause playback automatically after:", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = customSleepMinutes,
+                        onValueChange = { value -> customSleepMinutes = value.filter(Char::isDigit).take(3) },
+                        modifier = Modifier.fillMaxWidth(), label = { Text("Custom minutes (1–720)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        singleLine = true
+                    )
+                    Text("Choose a quick preset or enter your own time.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     listOf(15, 30, 45, 60).forEach { minutes ->
                         Surface(
                             color = if (sleepTimerMinutes == minutes) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
@@ -1745,7 +1869,68 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     TextButton(onClick = { sleepTimerMinutes = 0; showSleepTimer = false }) { Text("Cancel active timer") }
                 }
             },
-            confirmButton = { TextButton(onClick = { showSleepTimer = false }) { Text("Done") } }
+            confirmButton = {
+                Button(onClick = {
+                    val minutes = customSleepMinutes.toIntOrNull()
+                    if (minutes != null && minutes in 1..720) {
+                        sleepTimerMinutes = minutes
+                        showSleepTimer = false
+                        Toast.makeText(context, "Sleep timer set for $minutes minutes", Toast.LENGTH_SHORT).show()
+                    } else Toast.makeText(context, "Enter a time between 1 and 720 minutes", Toast.LENGTH_SHORT).show()
+                }) { Text("Start timer") }
+            },
+            dismissButton = { TextButton(onClick = { showSleepTimer = false }) { Text("Cancel") } }
+        )
+    }
+    if (trackForPlaylist != null) {
+        val track = trackForPlaylist!!
+        AlertDialog(
+            onDismissRequest = { trackForPlaylist = null }, containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Add to playlist", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(track.title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (localPlaylists.isEmpty()) Text("No local playlists yet. Create one below.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    localPlaylists.forEach { playlist ->
+                        Surface(modifier = Modifier.fillMaxWidth().clickable { addTrackToPlaylist(track, playlist.id) }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.secondary)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(playlist.name, fontWeight = FontWeight.SemiBold)
+                                    Text("${playlist.trackIds.size} tracks", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(Icons.Rounded.Add, null)
+                            }
+                        }
+                    }
+                    OutlinedTextField(value = playlistNameForTrack, onValueChange = { playlistNameForTrack = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Or create a playlist") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                Button(enabled = playlistNameForTrack.isNotBlank(), onClick = {
+                    val name = playlistNameForTrack.trim()
+                    val existing = localPlaylists.firstOrNull { it.name.equals(name, true) }
+                    if (existing != null) addTrackToPlaylist(track, existing.id) else {
+                        rememberTrack(track)
+                        val created = LocalPlaylist("${System.currentTimeMillis()}-${localPlaylists.size}", name, listOf(track.id))
+                        localPlaylists.add(0, created)
+                        prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
+                        trackForPlaylist = null
+                        Toast.makeText(context, "Created playlist: $name", Toast.LENGTH_SHORT).show()
+                    }
+                }) { Text("Create & add") }
+            },
+            dismissButton = { TextButton(onClick = { trackForPlaylist = null }) { Text("Cancel") } }
+        )
+    }
+    if (showEqualizer) {
+        EqualizerDialog(
+            enabled = eqEnabled, levels = eqLevels.toList(), customPresets = customEqPresets.toList(), presetName = eqPresetName,
+            onEnabledChange = { enabled -> eqEnabled = enabled; prefs.edit().putBoolean("eq_enabled", enabled).apply() },
+            onLevelChange = { index, value -> eqLevels[index] = value; prefs.edit().putString("eq_levels", eqLevels.joinToString(",")).apply() },
+            onApplyPreset = { preset -> applyEqPreset(preset.levels); eqPresetName = "" },
+            onPresetNameChange = { eqPresetName = it }, onSavePreset = { saveEqPreset(eqPresetName) }, onDismiss = { showEqualizer = false }
         )
     }
     if (showCreatePlaylist) {
@@ -1894,21 +2079,13 @@ private fun TrackRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Cover(track.artworkUrl, Modifier.size(58.dp))
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(track.durationLabel, color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp)
         }
         IconButton(onClick = onFavorite) {
             Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = MaterialTheme.colorScheme.secondary) }
-        if (onSelect != null) {
-            IconButton(onClick = onSelect) {
-                Icon(if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.PlaylistAdd,
-                    contentDescription = if (selected) "Selected for playlist" else "Select for playlist",
-                    tint = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
-            }
         }
         val queueActions = LocalQueueActions.current
         if (queueActions != null) {
@@ -1930,6 +2107,21 @@ private fun TrackRow(
                         onClick = { menuOpen = false; queueActions.addToQueue(track) }
                     )
                     DropdownMenuItem(
+                        text = { Text("Add to playlist") },
+                        leadingIcon = { Icon(Icons.Rounded.QueueMusic, contentDescription = null) },
+                        onClick = { menuOpen = false; queueActions.addToPlaylist(track) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Download audio + artwork") },
+                        leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
+                        onClick = { menuOpen = false; queueActions.download(track) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Equalizer") },
+                        leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null) },
+                        onClick = { menuOpen = false; queueActions.openEqualizer() }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Share") },
                         leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
                         onClick = {
@@ -1945,6 +2137,70 @@ private fun TrackRow(
                 }
             }
         }
-        IconButton(onClick = onPlay) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play track", tint = Color.White) }
     }
+}
+
+@Composable
+private fun EqualizerDialog(
+    enabled: Boolean,
+    levels: List<Int>,
+    customPresets: List<EqPreset>,
+    presetName: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onLevelChange: (Int, Int) -> Unit,
+    onApplyPreset: (EqPreset) -> Unit,
+    onPresetNameChange: (String) -> Unit,
+    onSavePreset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val builtIn = listOf(
+        EqPreset("Flat", listOf(0, 0, 0, 0, 0)),
+        EqPreset("Bass Boost", listOf(6, 4, 2, 0, 0)),
+        EqPreset("Pop", listOf(-1, 2, 4, 3, 1)),
+        EqPreset("Rock", listOf(4, 2, -1, 2, 4)),
+        EqPreset("Classical", listOf(0, 1, 2, 1, 3)),
+        EqPreset("Vocal", listOf(-3, 0, 3, 4, 1))
+    )
+    val bands = listOf("60 Hz · Bass", "230 Hz · Low", "910 Hz · Mid", "3.6 kHz · Presence", "14 kHz · Air")
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Equalizer", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 540.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Audio effects", fontWeight = FontWeight.SemiBold)
+                        Text("Adjust five bands and save your own presets.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    }
+                    Switch(checked = enabled, onCheckedChange = onEnabledChange)
+                }
+                Text("PRESETS", color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(builtIn) { preset -> FilterChip(selected = false, onClick = { onApplyPreset(preset) }, label = { Text(preset.name) }) }
+                }
+                if (customPresets.isNotEmpty()) {
+                    Text("MY PRESETS", color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(customPresets, key = { it.name }) { preset -> FilterChip(selected = false, onClick = { onApplyPreset(preset) }, label = { Text(preset.name) }) }
+                    }
+                }
+                bands.forEachIndexed { index, label ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, modifier = Modifier.weight(1f), fontSize = 12.sp)
+                        Text("${levels.getOrElse(index) { 0 }} dB", color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Slider(value = levels.getOrElse(index) { 0 }.toFloat(), onValueChange = { onLevelChange(index, it.toInt().coerceIn(-12, 12)) },
+                        valueRange = -12f..12f, steps = 23, enabled = enabled,
+                        colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.secondary, activeTrackColor = MaterialTheme.colorScheme.primary))
+                }
+                HorizontalDivider()
+                OutlinedTextField(value = presetName, onValueChange = onPresetNameChange, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Custom preset name") }, placeholder = { Text("e.g. My headphones") })
+                Button(onClick = onSavePreset, enabled = presetName.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Save, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Save current preset")
+                }
+                Text("Effect depends on Android audio-effect support and the active player session.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+    )
 }
