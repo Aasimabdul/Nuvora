@@ -108,3 +108,9 @@ The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtra
 - Added a short crossfade transition when switching main screens.
 - Removed fixed dark navy colors from the mini-player gradient, Now Playing backdrop and active track row so Light/Pearl themes use their own Material color scheme.
 - Uses theme-aware play icon contrast via `onPrimary`.
+
+## v0.5.4
+- Audius Home now uses the official trending endpoint instead of a search for "electronic chill".
+- Infinite scroll for Audius trending and search results (pages of 25 tracks), without disturbing the current queue.
+- Pull-to-refresh on Home and animated loading skeletons for the track lists.
+- The app no longer restarts on rotation, so your tab, search text and results are kept.
