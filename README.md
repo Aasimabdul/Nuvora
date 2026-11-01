@@ -41,7 +41,7 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.6.2
+## Current development version: v0.5.3
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
 - Fixed nested YouTube Music thumbnail parsing, added YouTube video-thumbnail fallbacks, normalized CDN image URLs, improved image-load fallbacks, and migrated saved YouTube tracks that lacked artwork.
@@ -81,3 +81,30 @@ The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtra
 - Wraps Now Playing transport controls in a translucent theme-aware glass surface.
 - Routes playable tracks through Media3 MediaSession when connected, enabling Android media notification/lock-screen controls for supported streams across providers. Validate this on-device.
 - In-place APK updates require a consistent signing certificate. CI accepts a stable debug keystore via the `NUVORA_DEBUG_KEYSTORE_BASE64` repository secret. Do not commit the private keystore; without this secret, debug APK signatures may differ between CI runs.
+
+
+## v0.6.3 player usability updates
+
+- Reduces crowding on track rows: favourite and More actions remain visible while queue, playlist, download and equalizer actions move into the overflow menu.
+- Adds local playlist creation and add-to-playlist actions from track and Now Playing menus.
+- Adds a custom sleep timer (1–720 minutes), built-in equalizer presets, custom five-band levels and saved user presets.
+- Adds a subtle animated gradient to Now Playing.
+- Downloads available artwork separately to Pictures/Nuvora/Artwork alongside eligible audio downloads in Music/Nuvora.
+- Audio-effect behavior and album art downloads depend on Android device and provider support; verify on-device.
+
+
+## v0.6.4 UI and equalizer fixes
+
+- Replaced the track More popup and Now Playing options popup with a shared, theme-aware action-sheet presentation.
+- Provider and theme selection use full-width bottom sheets rather than small popup menus.
+- Equalizer changes target both the Media3 service session and the local ExoPlayer session. The effect is re-created when the actual audio-session ID becomes available and settings are re-applied when playback reaches READY.
+- Improved hierarchy and descriptions for Play next, Queue, Playlist, Download, Equalizer, Sleep timer and Share actions.
+- CI build required before APK distribution; OEM equalizer support still needs real-device validation.
+
+
+## v0.6.5 navigation and light-theme polish
+
+- System Back from any non-home screen now returns to Home instead of immediately leaving the app.
+- Added a short crossfade transition when switching main screens.
+- Removed fixed dark navy colors from the mini-player gradient, Now Playing backdrop and active track row so Light/Pearl themes use their own Material color scheme.
+- Uses theme-aware play icon contrast via `onPrimary`.
