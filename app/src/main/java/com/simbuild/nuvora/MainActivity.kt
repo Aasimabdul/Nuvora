@@ -129,13 +129,27 @@ private fun formatTime(ms: Long): String {
 }
 
 class MainActivity : ComponentActivity() {
-    private lateinit var player: ExoPlayer
+    private var player: MediaController? = null
+    private var controllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
     private var sharedYouTubeLink by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sharedYouTubeLink = youtubeLinkFromIntent(intent)
-        player = ExoPlayer.Builder(this).build()
+        val token = SessionToken(this, ComponentName(this, NuvoraPlaybackService::class.java))
+        controllerFuture = MediaController.Builder(this, token).buildAsync()
+        controllerFuture?.addListener({
+            try {
+                player = controllerFuture?.get()
+                player?.let { controller -> showNuvora(controller) }
+            } catch (_: Exception) {
+                Toast.makeText(this, "Could not connect to the playback service", Toast.LENGTH_LONG).show()
+                finish()
+            }
+        }, mainExecutor)
+    }
+
+    private fun showNuvora(controller: Player) {
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
@@ -146,7 +160,7 @@ class MainActivity : ComponentActivity() {
             ) else darkColorScheme(
                 primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
                 surface = chosenTheme.surface, onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { NuvoraApp(player, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink) }
+            )) { NuvoraApp(controller, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink) }
         }
     }
 
@@ -157,13 +171,14 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        player.release()
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        player = null
         super.onDestroy()
     }
 }
 
 @Composable
-private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -> Unit, sharedYouTubeLink: String?) {
+private fun NuvoraApp(player: Player, themeIndex: Int, onThemeChange: (Int) -> Unit, sharedYouTubeLink: String?) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
