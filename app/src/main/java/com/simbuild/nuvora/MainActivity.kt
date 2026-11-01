@@ -31,6 +31,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,13 +71,34 @@ private val Blue = Color(0xFF4D8DFF)
 private val Cyan = Color(0xFF5CE1E6)
 private val Muted = Color(0xFF9AA8C2)
 
-private data class NuvoraTheme(val label: String, val background: Color, val surface: Color, val primary: Color, val secondary: Color)
+private data class NuvoraTheme(
+    val label: String,
+    val background: Color,
+    val surface: Color,
+    val primary: Color,
+    val secondary: Color,
+    val isLight: Boolean = false,
+    val dynamic: Boolean = false
+)
+
+/** Existing themes are kept first so saved theme indices remain compatible. */
 private val themes = listOf(
     NuvoraTheme("Neon Blue", Color(0xFF080D1A), Color(0xFF121B2E), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
     NuvoraTheme("AMOLED Black", Color(0xFF000000), Color(0xFF101010), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
     NuvoraTheme("Purple Night", Color(0xFF10091D), Color(0xFF21152F), Color(0xFFB18CFF), Color(0xFFE0B8FF)),
     NuvoraTheme("Forest", Color(0xFF071510), Color(0xFF10251D), Color(0xFF48C78E), Color(0xFF9DE8C0)),
-    NuvoraTheme("Light", Color(0xFFF4F7FC), Color(0xFFFFFFFF), Color(0xFF245DCE), Color(0xFF007F91))
+    NuvoraTheme("Light", Color(0xFFF4F7FC), Color(0xFFFFFFFF), Color(0xFF245DCE), Color(0xFF007F91), isLight = true),
+    NuvoraTheme("Midnight Navy", Color(0xFF07111F), Color(0xFF12233A), Color(0xFF4F9BFF), Color(0xFF86D7FF)),
+    NuvoraTheme("Pixel Blue", Color(0xFF0B1424), Color(0xFF18283E), Color(0xFF8AB4F8), Color(0xFFD3E3FD)),
+    NuvoraTheme("Liquid Glass", Color(0xFF091322), Color(0xB8203048), Color(0xFF72B7FF), Color(0xFF9BE7F5)),
+    NuvoraTheme("Neo Blue", Color(0xFF111B2C), Color(0xFF17243A), Color(0xFF65A7FF), Color(0xFF8BC8FF)),
+    NuvoraTheme("Arctic Cyan", Color(0xFF07171D), Color(0xFF112A33), Color(0xFF4DE1E6), Color(0xFFB2FAF4)),
+    NuvoraTheme("Aurora", Color(0xFF100F25), Color(0xFF211D40), Color(0xFF9D91FF), Color(0xFF68D8F2)),
+    NuvoraTheme("Sunset Coral", Color(0xFF21121A), Color(0xFF35202A), Color(0xFFFF8A80), Color(0xFFFFC2A1)),
+    NuvoraTheme("Pearl Light", Color(0xFFF5F4F8), Color(0xFFFFFFFF), Color(0xFF6555A5), Color(0xFFB44C73), isLight = true),
+    NuvoraTheme("Material You Dynamic", Color(0xFF101318), Color(0xFF20242B), Color(0xFF9DBDFF), Color(0xFFC4C6D0), dynamic = true),
+    NuvoraTheme("Graphite Silver", Color(0xFF101113), Color(0xFF222428), Color(0xFFC2C7D0), Color(0xFF8E98A8)),
+    NuvoraTheme("Ocean Teal", Color(0xFF061B20), Color(0xFF103036), Color(0xFF4DD0C8), Color(0xFF9AECE1))
 )
 
 private data class LocalPlaylist(val id: String, val name: String, val trackIds: List<String>)
@@ -285,13 +309,22 @@ class MainActivity : ComponentActivity() {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
             val chosenTheme = themes[themeIndex]
-            MaterialTheme(colorScheme = if (themeIndex == 4) lightColorScheme(
-                primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
-                surface = chosenTheme.surface, onBackground = Color(0xFF111827), onSurface = Color(0xFF111827)
-            ) else darkColorScheme(
-                primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
-                surface = chosenTheme.surface, onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { NuvoraApp(player, servicePlayer, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink) }
+            val systemDark = isSystemInDarkTheme()
+            val colorScheme = when {
+                chosenTheme.dynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                    if (systemDark) dynamicDarkColorScheme(this@MainActivity) else dynamicLightColorScheme(this@MainActivity)
+                chosenTheme.isLight -> lightColorScheme(
+                    primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
+                    surface = chosenTheme.surface, onBackground = Color(0xFF111827), onSurface = Color(0xFF111827)
+                )
+                else -> darkColorScheme(
+                    primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
+                    surface = chosenTheme.surface, onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
+                )
+            }
+            MaterialTheme(colorScheme = colorScheme) {
+                NuvoraApp(player, servicePlayer, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink)
+            }
         }
     }
 
@@ -698,8 +731,8 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             Column(
-                Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 7.dp, bottom = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 18.dp, end = 18.dp, top = 7.dp, bottom = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (tab != 4) active?.let { track ->
                     Surface(
@@ -748,16 +781,17 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 }
                 Surface(
                     shape = RoundedCornerShape(28.dp),
-                    color = Panel.copy(alpha = 0.94f),
-                    border = BorderStroke(1.dp, Blue.copy(alpha = 0.18f)),
-                    tonalElevation = 4.dp,
-                    shadowElevation = 16.dp,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 18.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     NavigationBar(
                         containerColor = Color.Transparent,
                         tonalElevation = 0.dp,
-                        modifier = Modifier.height(68.dp)
+                        windowInsets = WindowInsets(0.dp),
+                        modifier = Modifier.heightIn(min = 76.dp)
                     ) {
                         val labels = listOf("Home", "Search", "Playlists", "Settings")
                         val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.QueueMusic, Icons.Rounded.Settings)
@@ -768,11 +802,11 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 icon = { Icon(icons[index], contentDescription = label) },
                                 label = { Text(label, fontSize = 10.sp) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Cyan,
-                                    selectedTextColor = Cyan,
-                                    indicatorColor = Blue.copy(alpha = 0.18f),
-                                    unselectedIconColor = Muted,
-                                    unselectedTextColor = Muted
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                         }
