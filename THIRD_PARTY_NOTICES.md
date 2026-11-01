@@ -2,7 +2,7 @@
 
 ## NewPipe Extractor
 
-Nuvora v0.4.0 uses [NewPipe Extractor v0.26.5](https://github.com/TeamNewPipe/NewPipeExtractor/tree/v0.26.5) to resolve public YouTube audio streams for in-app Media3 playback.
+Nuvora uses [NewPipe Extractor v0.26.5](https://github.com/TeamNewPipe/NewPipeExtractor/tree/v0.26.5) to resolve public YouTube audio streams for in-app Media3 playback.
 
 - License: GNU General Public License v3.0 or later (GPL-3.0-or-later).
 - License text: see the repository `LICENSE` file.

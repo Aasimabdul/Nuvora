@@ -1,5 +1,7 @@
 # Nuvora — MuPlayer Online-First UI Blueprint
 
+> **Historical document.** This is the original design blueprint written before development. It is kept for reference only. The app name is now **Nuvora**, providers have been integrated, and the sample content described below has been replaced. See the [README](../README.md) for the current feature set.
+
 > Product identity: Android app display name remains **MuPlayer**. Repository: **Nuvora**.
 > Product direction confirmed by the owner: **fully online music app**, not a local music player. The music source/provider is intentionally undecided.
 
