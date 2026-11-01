@@ -92,3 +92,10 @@ The Home header includes a visible **Source** control. Its picker currently list
 - Keep the active source visible and make switching available without leaving the Home screen.
 - Provider capabilities must remain distinct. YouTube API policies prohibit extracting audio or enabling background playback of YouTube player content; implement only a compliant player/official supported route. See https://developers.google.com/youtube/terms/developer-policies-guide.
 - For JioSaavn and other providers, verify authorized API/playback access and terms before promising in-app streaming.
+
+## Implementation log
+
+### v0.6.0 Phase 1 - Playback
+- `PlaybackService` (Media3 `MediaSessionService`) owns a dedicated ExoPlayer for official (Audius) tracks; the UI connects with a `MediaController`. Other providers keep the activity-owned player.
+- The UI owns the queue (`queueTracks`). Each service track is played on its own; auto-advance and the notification next/previous buttons are routed back to the UI through `PlaybackBridge`. Limitation: if the activity is destroyed while music plays, the current track continues but next/previous and auto-advance stop until the app is reopened.
+- `QueueSheet` is provider-agnostic and only edits the UI queue through callbacks.

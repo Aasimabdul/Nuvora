@@ -1,14 +1,19 @@
 package com.simbuild.nuvora
 
+import android.Manifest
 import android.app.DownloadManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +23,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -38,14 +44,19 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import coil.compose.AsyncImage
+import com.google.common.util.concurrent.ListenableFuture
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -205,9 +216,40 @@ private fun downloadTrack(context: Context, track: MusicTrack) {
     }
 }
 
+/** Only official, API-backed sources (Audius) are played through the background MediaSession service. */
+private fun isOfficialTrack(track: MusicTrack): Boolean =
+    !track.id.startsWith("youtube-") && !track.id.startsWith("jiosaavn-")
+
+private fun MusicTrack.toServiceMediaItem(): MediaItem {
+    val uri = Uri.parse(streamUrl)
+    return MediaItem.Builder()
+        .setMediaId(id)
+        .setUri(uri)
+        .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(uri).build())
+        .setMediaMetadata(
+            MediaMetadata.Builder()
+                .setTitle(title)
+                .setArtist(artist)
+                .setDurationMs(durationSeconds * 1000L)
+                .setArtworkUri(artworkUrl?.let { Uri.parse(it) })
+                .build()
+        )
+        .build()
+}
+
+private fun speedLabel(v: Float): String = if (v == v.toInt().toFloat()) "${v.toInt()}x" else "${v}x"
+
+private class QueueActions(val playNext: (MusicTrack) -> Unit, val addToQueue: (MusicTrack) -> Unit)
+
+private val LocalQueueActions = compositionLocalOf<QueueActions?> { null }
+
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
     private var sharedYouTubeLink by mutableStateOf<String?>(null)
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private var servicePlayer by mutableStateOf<MediaController?>(null)
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -228,6 +270,17 @@ class MainActivity : ComponentActivity() {
                 )
             )
             .build()
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        controllerFuture = future
+        future.addListener({
+            servicePlayer = try { future.get() } catch (_: Exception) { null }
+        }, ContextCompat.getMainExecutor(this))
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
@@ -238,7 +291,7 @@ class MainActivity : ComponentActivity() {
             ) else darkColorScheme(
                 primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
                 surface = chosenTheme.surface, onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { NuvoraApp(player, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink) }
+            )) { NuvoraApp(player, servicePlayer, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink) }
         }
     }
 
@@ -249,6 +302,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        PlaybackBridge.onNext = null
+        PlaybackBridge.onPrevious = null
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
         player.release()
         super.onDestroy()
     }
@@ -256,9 +313,11 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -> Unit, sharedYouTubeLink: String?) {
+private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex: Int, onThemeChange: (Int) -> Unit, sharedYouTubeLink: String?) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
+    var useService by remember { mutableStateOf(false) }
+    val player: Player = if (useService && servicePlayer != null) servicePlayer else localPlayer
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
     var editingSource by remember { mutableStateOf(sourceUrl) }
     var selectedProvider by remember {
@@ -322,6 +381,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
     var sleepTimerMinutes by remember { mutableIntStateOf(0) }
     var showSleepTimer by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
+    var speed by remember { mutableFloatStateOf(1f) }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
     var playing by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -342,7 +403,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     LaunchedEffect(sleepTimerMinutes) {
         if (sleepTimerMinutes > 0) {
             kotlinx.coroutines.delay(sleepTimerMinutes * 60_000L)
-            player.pause()
+            localPlayer.pause()
+            servicePlayer?.pause()
             sleepTimerMinutes = 0
             Toast.makeText(context, "Sleep timer finished", Toast.LENGTH_SHORT).show()
         }
@@ -431,19 +493,6 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         }
     }
 
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
-            override fun onPlayerError(error: PlaybackException) {
-                playerError = explainPlaybackFailure(error)
-                playing = false
-                Toast.makeText(context, playerError, Toast.LENGTH_LONG).show()
-            }
-        }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
-    }
-
     LaunchedEffect(sharedYouTubeLink) {
         selectedYouTubeLink = sharedYouTubeLink
         if (!sharedYouTubeLink.isNullOrBlank() && extractYouTubeVideoId(sharedYouTubeLink) != null) {
@@ -466,8 +515,19 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val countsJson = JSONObject().apply { playCounts.forEach { (id, count) -> put(id, count) } }
         prefs.edit().putString("play_counts", countsJson.toString()).apply()
         playerError = null
-        player.repeatMode = repeatMode
-        player.shuffleModeEnabled = shuffleEnabled
+        val viaService = servicePlayer != null && isOfficialTrack(track)
+        val target: Player = if (viaService && servicePlayer != null) servicePlayer else localPlayer
+        (if (viaService) localPlayer else servicePlayer)?.pause()
+        useService = viaService
+        if (viaService) {
+            // The UI owns the queue: each Audius track plays on its own and the UI handles next/shuffle/repeat-all.
+            target.repeatMode = if (repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+            target.shuffleModeEnabled = false
+        } else {
+            target.repeatMode = repeatMode
+            target.shuffleModeEnabled = shuffleEnabled
+        }
+        target.setPlaybackSpeed(speed)
 
         if (track.id.startsWith("youtube-")) {
             loading = true
@@ -475,9 +535,9 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 try {
                     val videoId = track.id.removePrefix("youtube-")
                     val streamUrl = YouTubeMusicPlaybackRepository.resolveAudioStream(videoId)
-                    player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(streamUrl).build())
-                    player.prepare()
-                    player.play()
+                    localPlayer.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(streamUrl).build())
+                    localPlayer.prepare()
+                    localPlayer.play()
                 } catch (e: Exception) {
                     playerError = "Couldn't open this stream. YouTube may have blocked the request or the stream may have expired. Try another track or check your connection."
                     playing = false
@@ -485,18 +545,22 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     loading = false
                 }
             }
+        } else if (viaService) {
+            target.setMediaItem(track.toServiceMediaItem())
+            target.prepare()
+            target.play()
         } else {
             val queue = queueTracks.filter { !it.id.startsWith("youtube-") && it.streamUrl.startsWith("https://") }
             val startIndex = queue.indexOfFirst { it.id == track.id }
             if (queue.size > 1 && startIndex >= 0) {
-                player.setMediaItems(queue.map { item ->
+                localPlayer.setMediaItems(queue.map { item ->
                     MediaItem.Builder().setMediaId(item.id).setUri(item.streamUrl).build()
                 }, startIndex, 0L)
             } else {
-                player.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(track.streamUrl).build())
+                localPlayer.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(track.streamUrl).build())
             }
-            player.prepare()
-            player.play()
+            localPlayer.prepare()
+            localPlayer.play()
         }
     }
 
@@ -539,6 +603,68 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         if (previous != null) play(previous) else player.seekTo(0L)
     }
 
+    fun applyModes() {
+        if (player === localPlayer) {
+            player.repeatMode = repeatMode
+            player.shuffleModeEnabled = shuffleEnabled
+        } else {
+            player.repeatMode = if (repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+            player.shuffleModeEnabled = false
+        }
+    }
+
+    fun playNext(track: MusicTrack) {
+        rememberTrack(track)
+        val current = active
+        if (current == null) {
+            queueTracks = listOf(track)
+            play(track)
+            return
+        }
+        val q = queueTracks.filterNot { it.id == track.id }.toMutableList()
+        val index = q.indexOfFirst { it.id == current.id }
+        q.add(if (index >= 0) index + 1 else q.size, track)
+        queueTracks = q
+        Toast.makeText(context, "Playing next", Toast.LENGTH_SHORT).show()
+    }
+
+    fun addToQueue(track: MusicTrack) {
+        rememberTrack(track)
+        if (active == null) {
+            queueTracks = listOf(track)
+            play(track)
+            return
+        }
+        queueTracks = queueTracks.filterNot { it.id == track.id } + track
+        Toast.makeText(context, "Added to queue", Toast.LENGTH_SHORT).show()
+    }
+
+    val onTrackEnded by rememberUpdatedState<() -> Unit>({ skipNext() })
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED && useService) onTrackEnded()
+            }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val id = mediaItem?.mediaId ?: return
+                queueTracks.firstOrNull { it.id == id }?.let { if (active?.id != it.id) active = it }
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                playerError = explainPlaybackFailure(error)
+                playing = false
+                Toast.makeText(context, playerError, Toast.LENGTH_LONG).show()
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+
+    SideEffect {
+        PlaybackBridge.onNext = { skipNext() }
+        PlaybackBridge.onPrevious = { skipPrevious() }
+    }
+
     fun selectProvider(provider: String) {
         selectedProvider = provider
         prefs.edit().putString("music_provider", provider).apply()
@@ -567,6 +693,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         }
     }
 
+    CompositionLocalProvider(LocalQueueActions provides QueueActions({ playNext(it) }, { addToQueue(it) })) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
@@ -1297,7 +1424,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
                         IconButton(onClick = {
                             shuffleEnabled = !shuffleEnabled
-                            player.shuffleModeEnabled = shuffleEnabled
+                            applyModes()
                         }) {
                             Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (shuffleEnabled) Cyan else Muted)
                         }
@@ -1323,7 +1450,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                                 Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
                                 else -> Player.REPEAT_MODE_OFF
                             }
-                            player.repeatMode = repeatMode
+                            applyModes()
                         }) {
                             Icon(
                                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
@@ -1346,7 +1473,29 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         Spacer(Modifier.width(6.dp))
                         Text(if (sleepTimerMinutes > 0) "Sleep timer: $sleepTimerMinutes min" else "Sleep timer")
                     }
-                    Text("${queueTracks.size.coerceAtLeast(if (active == null) 0 else 1)} tracks in queue", color = Muted.copy(alpha = 0.8f), fontSize = 10.sp)
+                    TextButton(onClick = { showQueue = true }) {
+                        Icon(Icons.Rounded.QueueMusic, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Up next \u00B7 ${queueTracks.size.coerceAtLeast(if (active == null) 0 else 1)} tracks")
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Speed, contentDescription = "Playback speed", tint = Muted, modifier = Modifier.size(18.dp))
+                        listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v ->
+                            FilterChip(
+                                selected = speed == v,
+                                onClick = {
+                                    speed = v
+                                    localPlayer.setPlaybackSpeed(v)
+                                    servicePlayer?.setPlaybackSpeed(v)
+                                },
+                                label = { Text(speedLabel(v), fontSize = 12.sp) }
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(14.dp))
                 }
             } ?: Column(Modifier.fillMaxSize().padding(insets).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -1354,6 +1503,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 Button(onClick = { tab = 0 }) { Text("Discover music") }
             }
         }
+    }
     }
     if (showProviders) {
         ModalBottomSheet(
@@ -1415,6 +1565,20 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                 }
             }
         }
+    }
+    if (showQueue) {
+        QueueSheet(
+            queue = queueTracks,
+            currentId = active?.id,
+            onPlayAt = { index -> queueTracks.getOrNull(index)?.let { play(it) } },
+            onMove = { from, to -> queueTracks = queueTracks.toMutableList().apply { add(to, removeAt(from)) } },
+            onRemove = { index -> queueTracks = queueTracks.toMutableList().apply { if (index in indices) removeAt(index) } },
+            onClearUpcoming = {
+                val index = queueTracks.indexOfFirst { it.id == active?.id }
+                if (index >= 0) queueTracks = queueTracks.take(index + 1)
+            },
+            onDismiss = { showQueue = false }
+        )
     }
     if (showSleepTimer) {
         AlertDialog(
@@ -1535,7 +1699,7 @@ internal fun normalizeArtworkUrl(raw: String?): String? {
 }
 
 @Composable
-private fun Cover(url: String?, modifier: Modifier = Modifier) {
+internal fun Cover(url: String?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val imageUrl = remember(url) { normalizeArtworkUrl(url) }
     var imageFailed by remember(imageUrl) { mutableStateOf(imageUrl == null) }
@@ -1605,6 +1769,41 @@ private fun TrackRow(
                 Icon(if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.PlaylistAdd,
                     contentDescription = if (selected) "Selected for playlist" else "Select for playlist",
                     tint = if (selected) Cyan else Muted)
+            }
+        }
+        val queueActions = LocalQueueActions.current
+        if (queueActions != null) {
+            val context = LocalContext.current
+            var menuOpen by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "More options", tint = Muted)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Play next") },
+                        leadingIcon = { Icon(Icons.Rounded.PlaylistPlay, contentDescription = null) },
+                        onClick = { menuOpen = false; queueActions.playNext(track) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Add to queue") },
+                        leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, contentDescription = null) },
+                        onClick = { menuOpen = false; queueActions.addToQueue(track) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Share") },
+                        leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            val text = if (track.permalink.startsWith("https://")) "${track.title} \u00B7 ${track.artist}\n${track.permalink}" else "${track.title} \u00B7 ${track.artist}"
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, text)
+                            }
+                            context.startActivity(Intent.createChooser(send, "Share track"))
+                        }
+                    )
+                }
             }
         }
         IconButton(onClick = onPlay) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play track", tint = Color.White) }

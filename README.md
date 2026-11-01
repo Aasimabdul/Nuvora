@@ -54,3 +54,7 @@ YouTube Music support relies on undocumented service behavior and can stop worki
 ## Third-party notices
 
 The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor), licensed under GNU GPL version 3 or later. See `THIRD_PARTY_NOTICES.md` and `LICENSE`.
+
+## v0.6.0 (in progress)
+- Phase 1: Audius playback now runs in a Media3 `MediaSessionService`, so it continues in the background with notification, lock-screen and Bluetooth controls. The new "Up next" sheet (open it from Now Playing) lets you tap to play, long-press the handle to reorder, swipe to remove and clear upcoming tracks. Every track has a menu with Play next, Add to queue and Share, and Now Playing gains playback-speed chips.
+- Scope note: only the official Audius source uses the background service. Other providers keep their existing in-app foreground player.
