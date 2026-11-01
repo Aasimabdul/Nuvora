@@ -61,8 +61,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -94,6 +96,7 @@ private data class NuvoraTheme(
 
 /** Existing themes are kept first so saved theme indices remain compatible. */
 private val themes = listOf(
+    NuvoraTheme("Neon Lime Glass", Color(0xFF0A0A0F), Color(0xFF101626), Color(0xFFB6FF3B), Color(0xFF7C4DFF)),
     NuvoraTheme("Neon Blue", Color(0xFF080D1A), Color(0xFF121B2E), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
     NuvoraTheme("AMOLED Black", Color(0xFF000000), Color(0xFF101010), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
     NuvoraTheme("Purple Night", Color(0xFF10091D), Color(0xFF21152F), Color(0xFFB18CFF), Color(0xFFE0B8FF)),
@@ -2124,7 +2127,7 @@ private fun extractYouTubeVideoId(input: String): String? {
 }
 
 @Composable
-private fun SearchBar(
+private fun NuvoraSearchBar(
     query: String,
     onQuery: (String) -> Unit,
     onSearch: () -> Unit,
@@ -2135,14 +2138,36 @@ private fun SearchBar(
         OutlinedTextField(
             value = query, onValueChange = onQuery, modifier = Modifier.weight(1f),
             placeholder = { Text(placeholder) },
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            shape = RoundedCornerShape(18.dp), singleLine = true,
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            shape = RoundedCornerShape(22.dp), singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+            ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() })
         )
-        IconButton(onClick = onRefresh) { Icon(Icons.Rounded.Refresh, contentDescription = "Load discovery") }
-        IconButton(onClick = onSearch) { Icon(Icons.Rounded.ArrowForward, contentDescription = "Search") }
+        Spacer(Modifier.width(6.dp))
+        IconButton(onClick = onRefresh) { Icon(Icons.Rounded.Refresh, contentDescription = "Load discovery", tint = MaterialTheme.colorScheme.secondary) }
+        IconButton(onClick = onSearch) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ArrowForward, contentDescription = "Search", tint = Color(0xFF0A0A0F))
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun SearchBar(
+    query: String,
+    onQuery: (String) -> Unit,
+    onSearch: () -> Unit,
+    onRefresh: () -> Unit,
+    placeholder: String = "Songs, artists, moods…"
+) {
+    NuvoraSearchBar(query, onQuery, onSearch, onRefresh, placeholder)
 }
 
 @Composable
@@ -2168,15 +2193,19 @@ internal fun normalizeArtworkUrl(raw: String?): String? {
 }
 
 @Composable
-internal fun Cover(url: String?, modifier: Modifier = Modifier) {
+internal fun AlbumArtwork(
+    url: String?,
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = 18.dp
+) {
     val context = LocalContext.current
     val imageUrl = remember(url) { normalizeArtworkUrl(url) }
     var imageFailed by remember(imageUrl) { mutableStateOf(imageUrl == null) }
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(cornerRadius)
 
     Box(
         modifier = modifier.clip(shape).background(
-            Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.surface, Color(0xFF25234C)))
+            Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.surface, Color(0xFF7C4DFF)))
         ),
         contentAlignment = Alignment.Center
     ) {
@@ -2184,8 +2213,8 @@ internal fun Cover(url: String?, modifier: Modifier = Modifier) {
             Icon(
                 Icons.Rounded.MusicNote,
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size((maxWidth * 0.34f).coerceAtMost(56.dp))
+                tint = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.size((maxWidth * 0.38f).coerceAtMost(48.dp))
             )
         }
 
@@ -2194,7 +2223,7 @@ internal fun Cover(url: String?, modifier: Modifier = Modifier) {
                 model = remember(imageUrl) {
                     ImageRequest.Builder(context).data(imageUrl).crossfade(180).build()
                 },
-                contentDescription = "Track artwork",
+                contentDescription = "Album artwork",
                 contentScale = ContentScale.Crop,
                 onSuccess = { imageFailed = false },
                 onError = { imageFailed = true },
@@ -2204,9 +2233,14 @@ internal fun Cover(url: String?, modifier: Modifier = Modifier) {
     }
 }
 
+@Composable
+internal fun Cover(url: String?, modifier: Modifier = Modifier) {
+    AlbumArtwork(url, modifier)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TrackRow(
+private fun MusicTrackCard(
     track: MusicTrack,
     isActive: Boolean,
     onPlay: () -> Unit,
@@ -2218,18 +2252,23 @@ private fun TrackRow(
 ) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .background(if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
+            .background(if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+            .border(BorderStroke(1.dp, if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)), RoundedCornerShape(16.dp))
             .clickable(onClick = onPlay).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Cover(track.artworkUrl, Modifier.size(58.dp))
-        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-            Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        AlbumArtwork(track.artworkUrl, Modifier.size(56.dp), cornerRadius = 14.dp)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
             Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(track.durationLabel, color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp)
+            Text(track.durationLabel, color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp, fontWeight = FontWeight.Medium)
         }
         IconButton(onClick = onFavorite) {
-            Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                contentDescription = "Favourite",
+                tint = if (favorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         val queueActions = LocalQueueActions.current
         if (queueActions != null) {
@@ -2251,7 +2290,7 @@ private fun TrackRow(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Cover(track.artworkUrl, Modifier.size(56.dp))
+                                AlbumArtwork(track.artworkUrl, Modifier.size(56.dp), cornerRadius = 14.dp)
                                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                                     Text("TRACK ACTIONS", color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                                     Text(track.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -2276,6 +2315,226 @@ private fun TrackRow(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TrackRow(
+    track: MusicTrack,
+    isActive: Boolean,
+    onPlay: () -> Unit,
+    onFavorite: () -> Unit,
+    favorite: Boolean,
+    onDownload: () -> Unit = {},
+    onSelect: (() -> Unit)? = null,
+    selected: Boolean = false
+) {
+    MusicTrackCard(track, isActive, onPlay, onFavorite, favorite, onDownload, onSelect, selected)
+}
+
+@Composable
+private fun GenreCard(
+    title: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+        shadowElevation = 6.dp,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), modifier = Modifier.size(36.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    subtitle: String? = null,
+    actionText: String? = null,
+    onActionClick: (() -> Unit)? = null
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.2.sp)
+            if (subtitle != null) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+        if (actionText != null && onActionClick != null) {
+            TextButton(onClick = onActionClick) {
+                Text(actionText, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingPlaceholder(count: Int = 5) {
+    val transition = rememberInfiniteTransition(label = "skeleton")
+    val pulse by transition.animateFloat(
+        initialValue = 0.12f,
+        targetValue = 0.28f,
+        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
+        label = "skeleton-alpha"
+    )
+    val block = MaterialTheme.colorScheme.onSurface.copy(alpha = pulse)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(count) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface).padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)).background(block))
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.fillMaxWidth(0.65f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(block))
+                    Box(Modifier.fillMaxWidth(0.4f).height(10.dp).clip(RoundedCornerShape(6.dp)).background(block))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkeletonRows(count: Int = 6) {
+    LoadingPlaceholder(count)
+}
+
+@Composable
+private fun EmptyStateView(
+    title: String,
+    message: String,
+    actionText: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            modifier = Modifier.size(68.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.MusicOff, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            }
+        }
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, textAlign = TextAlign.Center)
+        if (actionText != null && onAction != null) {
+            Spacer(Modifier.height(4.dp))
+            Button(onClick = onAction) { Text(actionText) }
+        }
+    }
+}
+
+@Composable
+private fun NuvoraMiniPlayer(
+    track: MusicTrack,
+    isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onClick: () -> Unit,
+    onSeek: (Float) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)),
+        tonalElevation = 6.dp,
+        shadowElevation = 16.dp,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+    ) {
+        Column(
+            Modifier.background(
+                Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant)),
+                RoundedCornerShape(22.dp)
+            ).padding(horizontal = 14.dp, vertical = 12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AlbumArtwork(track.artworkUrl, Modifier.size(52.dp), cornerRadius = 14.dp)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                IconButton(onClick = onPlayPause) {
+                    Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onNext) {
+                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next track", tint = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+            if (durationMs > 0L) {
+                Spacer(Modifier.height(4.dp))
+                Slider(
+                    value = (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f),
+                    onValueChange = onSeek,
+                    modifier = Modifier.fillMaxWidth().height(20.dp),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NuvoraBottomBar(
+    tab: Int,
+    onTabSelected: (Int) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)),
+        tonalElevation = 4.dp,
+        shadowElevation = 20.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        NavigationBar(
+            containerColor = Color.Transparent,
+            tonalElevation = 0.dp,
+            windowInsets = WindowInsets(0.dp),
+            modifier = Modifier.heightIn(min = 72.dp)
+        ) {
+            val labels = listOf("Home", "Search", "Library", "Settings")
+            val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.QueueMusic, Icons.Rounded.Settings)
+            labels.forEachIndexed { index, label ->
+                NavigationBarItem(
+                    selected = tab == index,
+                    onClick = { onTabSelected(index) },
+                    icon = { Icon(icons[index], contentDescription = label) },
+                    label = { Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
             }
         }
     }
@@ -2376,29 +2635,3 @@ private fun EqualizerDialog(
     )
 }
 
-@Composable
-private fun SkeletonRows(count: Int = 6) {
-    val transition = rememberInfiniteTransition(label = "skeleton")
-    val pulse by transition.animateFloat(
-        initialValue = 0.10f,
-        targetValue = 0.24f,
-        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
-        label = "skeleton-alpha"
-    )
-    val block = MaterialTheme.colorScheme.onSurface.copy(alpha = pulse)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(count) {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface).padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(block))
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.fillMaxWidth(0.62f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(block))
-                    Box(Modifier.fillMaxWidth(0.36f).height(10.dp).clip(RoundedCornerShape(6.dp)).background(block))
-                }
-            }
-        }
-    }
-}
