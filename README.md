@@ -57,7 +57,7 @@ This is an early release. Verify search, playback, theme persistence, and downlo
 - Preserved existing music-source selection, themes, favourites, downloads, floating mini-player, and navigation.
 - YouTube remains limited to the official embedded player; native audio-only/background playback is not supported by the official YouTube API.
 
-## v0.3.8\n- Added a Media3 MediaSessionService and controller-backed playback so eligible Audius audio can continue in the background.\n- Enabled Media3 notification, lock-screen, headset and Bluetooth transport controls.\n- Existing source limitations remain: YouTube is embedded-video-only; JioSaavn, Spotify and SoundCloud use official external handoff.\n\n## v0.3.7
+## v0.3.8\n- Added a Media3 MediaSessionService and controller-backed playback so eligible Audius audio can continue in the background.\n- Enabled Media3 notification, lock-screen, headset and Bluetooth transport controls.\n- Added an Up next queue sheet with track selection, move-up/down reordering and remove actions.\n- Added playback-speed chips (0.75x–2x) and a cancellable 15/30/45/60-minute sleep timer.\n- Existing source limitations remain: YouTube is embedded-video-only; JioSaavn, Spotify and SoundCloud use official external handoff.\n\n## v0.3.7
 - Real playback queue: next/previous work across the current list, plus shuffle and repeat (off/all/one) on the Now Playing screen.
 - Now Playing now has a seek bar with elapsed/total time and Save/Download buttons.
 - Favourites are saved on the device and no longer disappear when you search again.
