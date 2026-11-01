@@ -28,8 +28,28 @@ jobs:
         with:
           gradle-version: "8.13"
 
+      - name: Restore stable debug signing key (optional)
+        env:
+          NUVORA_DEBUG_KEYSTORE_BASE64: ${{ secrets.NUVORA_DEBUG_KEYSTORE_BASE64 }}
+        if: ${{ env.NUVORA_DEBUG_KEYSTORE_BASE64 != '' }}
+        run: |
+          mkdir -p "$HOME/.android"
+          printf '%s' "$NUVORA_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+
+      - name: Warn when stable update signing is not configured
+        env:
+          NUVORA_DEBUG_KEYSTORE_BASE64: ${{ secrets.NUVORA_DEBUG_KEYSTORE_BASE64 }}
+        if: ${{ env.NUVORA_DEBUG_KEYSTORE_BASE64 == '' }}
+        run: echo "::warning::NUVORA_DEBUG_KEYSTORE_BASE64 is not configured. Debug APK signatures can differ between CI runs, so in-place upgrades are not guaranteed."
+
       - name: Build Nuvora APK
-        run: gradle --no-daemon assembleDebug
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleDebug 2>&1 | tee build.log || {
+            grep -E '^e: |What went wrong|Execution failed' -A2 build.log | head -60 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk Nuvora-debug.apk
@@ -42,12 +62,12 @@ jobs:
           if-no-files-found: error
 
       - name: Publish APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora v0.5.2'))
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora v0.3.6'))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.5.2' }}
+          tag_name: v0.3.6
           target_commitish: main
-          name: Nuvora ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.5.2' }}
-          body: "Nuvora v0.5.2: fixes YouTube Music thumbnail parsing and CDN URL handling. YouTube Music stream resolution remains unofficial and can fail for some tracks. Debug APK for testing; verify playback on a real Android device."
+          name: Nuvora v0.3.6
+          body: "Nuvora v0.3.6 adds a personalized greeting, mood cards, recently played tracks, horizontal music discovery cards, saved home-section toggles, and the floating minimal player UI. Audius Media3 playback remains supported. YouTube is limited to official embedded video playback. Debug APK for testing."
           files: Nuvora-debug.apk
           generate_release_notes: true

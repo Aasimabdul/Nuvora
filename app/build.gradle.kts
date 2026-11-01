@@ -10,8 +10,8 @@ android {
         applicationId = "com.simbuild.nuvora"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.5.2"
+        versionCode = 16
+        versionName = "0.6.2"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
@@ -35,5 +35,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.6.1")
     implementation("androidx.media3:media3-session:1.6.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("com.google.guava:guava:33.4.8-android")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

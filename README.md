@@ -41,7 +41,7 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.5.2
+## Current development version: v0.6.2
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
 - Fixed nested YouTube Music thumbnail parsing, added YouTube video-thumbnail fallbacks, normalized CDN image URLs, improved image-load fallbacks, and migrated saved YouTube tracks that lacked artwork.
@@ -54,3 +54,30 @@ YouTube Music support relies on undocumented service behavior and can stop worki
 ## Third-party notices
 
 The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor), licensed under GNU GPL version 3 or later. See `THIRD_PARTY_NOTICES.md` and `LICENSE`.
+
+## v0.6.0 (in progress)
+- Phase 1: Audius playback now runs in a Media3 `MediaSessionService`, so it continues in the background with notification, lock-screen and Bluetooth controls. The new "Up next" sheet (open it from Now Playing) lets you tap to play, long-press the handle to reorder, swipe to remove and clear upcoming tracks. Every track has a menu with Play next, Add to queue and Share, and Now Playing gains playback-speed chips.
+- Scope note: only the official Audius source uses the background service. Other providers keep their existing in-app foreground player.
+
+
+## v0.6.1 UI overhaul (in progress)
+
+- Preserved the five original Nuvora theme entries and added selectable palettes for Midnight Navy, Pixel Blue, Liquid Glass, Neo Blue, Arctic Cyan, Aurora, Sunset Coral, Pearl Light, Material You Dynamic, Graphite Silver and Ocean Teal.
+- Theme indices for the original palettes remain in their original order so saved preferences continue to map to the same themes.
+- Added Android 12+ system dynamic colour support for the Material You Dynamic theme, with a normal palette fallback on older Android versions.
+- Fixed the bottom navigation sizing constraint: the dock no longer forces Material 3 NavigationBar into a 68dp height that can clip its icon/label layout. It uses a responsive minimum height and explicit system-bar inset handling.
+- Updated the dock surface and selected/unselected item colours to follow the active Material theme.
+- Replaced legacy fixed custom UI colours with active Material theme tokens so the new palettes affect more of the interface consistently.
+- Added a live Settings theme preview with sample cards, typography, accent surfaces and dock icons.
+- This is an incremental UI foundation. The complete Liquid Glass/Neomorphism treatment across every screen, motion polish, and device/emulator QA still require validation before release.
+
+
+## v0.6.2 fixes in progress
+
+- Adds Songs and Playlists tabs to the Search screen; playlist discovery is moved out of the Playlists/Library search area.
+- Replaces the theme dropdown with a swatch-based theme picker sheet and applies theme-aware switch colours.
+- Makes Settings vertically scrollable.
+- Displays a download action consistently, while explaining that direct downloads are unavailable for YouTube Music instead of trying to download a watch-page URL.
+- Wraps Now Playing transport controls in a translucent theme-aware glass surface.
+- Routes playable tracks through Media3 MediaSession when connected, enabling Android media notification/lock-screen controls for supported streams across providers. Validate this on-device.
+- In-place APK updates require a consistent signing certificate. CI accepts a stable debug keystore via the `NUVORA_DEBUG_KEYSTORE_BASE64` repository secret. Do not commit the private keystore; without this secret, debug APK signatures may differ between CI runs.
