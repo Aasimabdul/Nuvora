@@ -120,11 +120,14 @@ object YouTubeMusicPlaylistsRepository {
                 ?.let { text(it.optJSONObject("text")) }
             ?: "YouTube Music playlist"
         val thumbnailArray = renderer.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+            ?: renderer.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
             ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("musicThumbnailRenderer")
                 ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+            ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
         val artwork = thumbnailArray?.let { array ->
             (array.length() - 1 downTo 0).firstNotNullOfOrNull { index ->
-                array.optJSONObject(index)?.optString("url")?.takeIf { it.startsWith("https://") }
+                normalizeArtworkUrl(array.optJSONObject(index)?.optString("url"))
             }
         }
         val listId = id.removePrefix("VL")
@@ -194,13 +197,16 @@ object YouTubeMusicPlaylistsRepository {
                 ?.let { text(it.optJSONObject("text")) }
             ?: "YouTube Music"
         val thumbnails = renderer.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+            ?: renderer.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
             ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("musicThumbnailRenderer")
                 ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+            ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
         val artwork = thumbnails?.let { array ->
             (array.length() - 1 downTo 0).firstNotNullOfOrNull { index ->
-                array.optJSONObject(index)?.optString("url")?.takeIf { it.startsWith("https://") }
+                normalizeArtworkUrl(array.optJSONObject(index)?.optString("url"))
             }
-        }
+        } ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
         val durationLabel = text(renderer.optJSONObject("lengthText")).orEmpty()
         val duration = durationLabel.split(":").mapNotNull { it.toIntOrNull() }
             .fold(0) { total, part -> total * 60 + part }
