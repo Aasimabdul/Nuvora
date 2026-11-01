@@ -65,3 +65,6 @@ This is an early release. Verify search, playback, theme persistence, and downlo
 - Active track is highlighted in lists; search box has a clear button; Settings scrolls on small screens; system Back returns Home from other tabs.
 - YouTube embedded player screen has a Paste button and rounded player.
 - Provider policy unchanged: no unofficial audio extraction (YouTube Music stays embedded-only; JioSaavn stays external-only).
+
+## v0.3.8 (in progress)
+- Phase 1: Background playback through a Media3 `MediaSessionService` (notification, lock-screen and Bluetooth controls), an "Up next" queue sheet (tap to jump, long-press handle to reorder, swipe to remove), Play next / Add to queue / Share in a per-track overflow menu, playback speed chips and a sleep timer.

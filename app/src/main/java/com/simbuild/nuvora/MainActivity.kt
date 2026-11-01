@@ -1,21 +1,27 @@
 package com.simbuild.nuvora
 
+import android.Manifest
 import android.app.DownloadManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -45,7 +51,11 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaMetadata
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import coil.compose.AsyncImage
 import org.json.JSONArray
 import org.json.JSONObject
@@ -128,25 +138,80 @@ private fun formatTime(ms: Long): String {
     return "%d:%02d".format(total / 60, total % 60)
 }
 
+private fun MusicTrack.toMediaItem(): MediaItem {
+    val uri = Uri.parse(streamUrl)
+    return MediaItem.Builder()
+        .setMediaId(id)
+        .setUri(uri)
+        .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(uri).build())
+        .setMediaMetadata(
+            MediaMetadata.Builder()
+                .setTitle(title)
+                .setArtist(artist)
+                .setDurationMs(durationSeconds * 1000L)
+                .setArtworkUri(artworkUrl?.let { Uri.parse(it) })
+                .setExtras(Bundle().apply {
+                    putString("stream", streamUrl)
+                    putString("permalink", permalink)
+                })
+                .build()
+        )
+        .build()
+}
+
+private fun MediaItem.toTrack(): MusicTrack = MusicTrack(
+    id = mediaId,
+    title = mediaMetadata.title?.toString() ?: "Untitled track",
+    artist = mediaMetadata.artist?.toString() ?: "Unknown artist",
+    artworkUrl = mediaMetadata.artworkUri?.toString(),
+    durationSeconds = ((mediaMetadata.durationMs ?: 0L) / 1000L).toInt(),
+    permalink = mediaMetadata.extras?.getString("permalink").orEmpty(),
+    streamUrl = mediaMetadata.extras?.getString("stream") ?: localConfiguration?.uri?.toString().orEmpty()
+)
+
+private fun speedLabel(v: Float): String = if (v == v.toInt().toFloat()) "${v.toInt()}x" else "${v}x"
+
 class MainActivity : ComponentActivity() {
-    private lateinit var player: ExoPlayer
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private var controller by mutableStateOf<MediaController?>(null)
     private var sharedYouTubeLink by mutableStateOf<String?>(null)
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sharedYouTubeLink = youtubeLinkFromIntent(intent)
-        player = ExoPlayer.Builder(this).build()
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        controllerFuture = future
+        future.addListener({
+            controller = try { future.get() } catch (_: Exception) { null }
+        }, ContextCompat.getMainExecutor(this))
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
             val chosenTheme = themes[themeIndex]
+            val connected = controller
             MaterialTheme(colorScheme = if (themeIndex == 4) lightColorScheme(
                 primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
                 surface = chosenTheme.surface, onBackground = Color(0xFF111827), onSurface = Color(0xFF111827)
             ) else darkColorScheme(
                 primary = chosenTheme.primary, secondary = chosenTheme.secondary, background = chosenTheme.background,
                 surface = chosenTheme.surface, onBackground = Color(0xFFF4F7FF), onSurface = Color(0xFFF4F7FF)
-            )) { NuvoraApp(player, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink) }
+            )) {
+                if (connected != null) {
+                    NuvoraApp(connected, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink)
+                } else {
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(strokeWidth = 2.dp)
+                    }
+                }
+            }
         }
     }
 
@@ -157,13 +222,15 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        player.release()
+        // The player lives in PlaybackService, so music keeps playing; only release our controller.
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
         super.onDestroy()
     }
 }
 
 @Composable
-private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -> Unit, sharedYouTubeLink: String?) {
+private fun NuvoraApp(player: Player, themeIndex: Int, onThemeChange: (Int) -> Unit, sharedYouTubeLink: String?) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("nuvora_settings", Context.MODE_PRIVATE) }
     var sourceUrl by remember { mutableStateOf(prefs.getString("source_url", "https://api.audius.co/v1") ?: "https://api.audius.co/v1") }
@@ -194,7 +261,13 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     val scope = rememberCoroutineScope()
-    val queue = remember { mutableListOf<MusicTrack>() }
+    val queueTracks = remember { mutableStateListOf<MusicTrack>() }
+    var currentIndex by remember { mutableIntStateOf(0) }
+    var showQueue by remember { mutableStateOf(false) }
+    var speed by remember { mutableFloatStateOf(1f) }
+    var sleepMinutes by remember { mutableIntStateOf(0) }
+    var sleepEndAt by remember { mutableStateOf<Long?>(null) }
+    var sleepLeftMs by remember { mutableLongStateOf(0L) }
     var shuffleOn by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
     fun markActive(track: MusicTrack) {
@@ -203,6 +276,34 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         recentlyPlayed.add(0, track)
         while (recentlyPlayed.size > 12) recentlyPlayed.removeAt(recentlyPlayed.lastIndex)
         playerError = null
+    }
+    fun syncQueue() {
+        queueTracks.clear()
+        for (i in 0 until player.mediaItemCount) queueTracks.add(player.getMediaItemAt(i).toTrack())
+        currentIndex = player.currentMediaItemIndex.coerceAtLeast(0)
+    }
+
+    LaunchedEffect(player) {
+        syncQueue()
+        player.currentMediaItem?.let { if (active == null) active = it.toTrack() }
+        playing = player.isPlaying
+        shuffleOn = player.shuffleModeEnabled
+        repeatMode = player.repeatMode
+        speed = player.playbackParameters.speed
+    }
+
+    LaunchedEffect(sleepEndAt) {
+        val end = sleepEndAt ?: return@LaunchedEffect
+        while (true) {
+            val left = end - System.currentTimeMillis()
+            if (left <= 0L) break
+            sleepLeftMs = left
+            kotlinx.coroutines.delay(minOf(left, 1000L))
+        }
+        player.pause()
+        sleepEndAt = null
+        sleepMinutes = 0
+        sleepLeftMs = 0L
     }
 
     LaunchedEffect(player, active, playing) {
@@ -260,9 +361,10 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                val id = mediaItem?.mediaId ?: return
-                queue.firstOrNull { it.id == id }?.let { markActive(it) }
+                mediaItem?.let { markActive(it.toTrack()) }
+                syncQueue()
             }
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { syncQueue() }
             override fun onPlayerError(error: PlaybackException) {
                 playerError = "This track could not play. Try another track."
             }
@@ -283,13 +385,29 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
 
     fun play(track: MusicTrack, list: List<MusicTrack> = tracks) {
         val items = if (list.any { it.id == track.id }) list else listOf(track)
-        queue.clear()
-        queue.addAll(items)
         val index = items.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
         markActive(track)
-        player.setMediaItems(items.map { MediaItem.Builder().setMediaId(it.id).setUri(it.streamUrl).build() }, index, 0L)
+        player.setMediaItems(items.map { it.toMediaItem() }, index, 0L)
         player.prepare()
         player.play()
+    }
+
+    fun addToQueue(track: MusicTrack) {
+        if (player.mediaItemCount == 0) {
+            play(track, listOf(track))
+        } else {
+            player.addMediaItem(track.toMediaItem())
+            Toast.makeText(context, "Added to queue", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun playNext(track: MusicTrack) {
+        if (player.mediaItemCount == 0) {
+            play(track, listOf(track))
+        } else {
+            player.addMediaItem(player.currentMediaItemIndex + 1, track.toMediaItem())
+            Toast.makeText(context, "Playing next", Toast.LENGTH_SHORT).show()
+        }
     }
 
     BackHandler(enabled = tab != 0) { tab = 0 }
@@ -525,7 +643,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             toggleFavorite(track)
-                        }, track.id in favorites, { downloadTrack(context, track) })
+                        }, track.id in favorites, { downloadTrack(context, track) }, { playNext(track) }, { addToQueue(track) })
                     }
                     item { Text("Catalogue by Audius · Track availability depends on creator settings.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)) }
                 }
@@ -540,7 +658,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             toggleFavorite(track)
-                        }, track.id in favorites, { downloadTrack(context, track) })
+                        }, track.id in favorites, { downloadTrack(context, track) }, { playNext(track) }, { addToQueue(track) })
                     }
                 }
             }
@@ -570,7 +688,7 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                     items(tracks, key = { "discover-tab-${it.id}" }) { track ->
                         TrackRow(track, active?.id == track.id, { play(track) }, {
                             toggleFavorite(track)
-                        }, track.id in favorites, { downloadTrack(context, track) })
+                        }, track.id in favorites, { downloadTrack(context, track) }, { playNext(track) }, { addToQueue(track) })
                     }
                 }
             }
@@ -691,9 +809,11 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                         Text("NOW PLAYING", color = Muted, fontSize = 11.sp, letterSpacing = 2.sp)
                         Spacer(Modifier.weight(1f))
                     }
-                    Spacer(Modifier.weight(1f))
-                    Cover(track.artworkUrl, Modifier.fillMaxWidth().aspectRatio(1f))
-                    Spacer(Modifier.height(24.dp))
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                        val side = minOf(maxWidth, maxHeight)
+                        Cover(track.artworkUrl, Modifier.size(side))
+                    }
+                    Spacer(Modifier.height(12.dp))
                     Text(track.title, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(track.artist, color = Muted, fontSize = 15.sp)
                     if (playerError != null) Text(playerError!!, color = Color(0xFFFF8A80), modifier = Modifier.padding(top = 12.dp))
@@ -737,8 +857,44 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
                             Icon(Icons.Rounded.Download, contentDescription = null, tint = Cyan, modifier = Modifier.size(20.dp))
                             Text("  Download")
                         }
+                        TextButton(onClick = { showQueue = true }) {
+                            Icon(Icons.Rounded.QueueMusic, contentDescription = null, tint = Cyan, modifier = Modifier.size(20.dp))
+                            Text("  Queue")
+                        }
                     }
-                    Spacer(Modifier.weight(1f))
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Speed, contentDescription = "Playback speed", tint = Muted, modifier = Modifier.size(18.dp))
+                        listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v ->
+                            FilterChip(
+                                selected = speed == v,
+                                onClick = { speed = v; player.setPlaybackSpeed(v) },
+                                label = { Text(speedLabel(v), fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Bedtime, contentDescription = "Sleep timer", tint = Muted, modifier = Modifier.size(18.dp))
+                        listOf(0, 15, 30, 45, 60).forEach { m ->
+                            FilterChip(
+                                selected = sleepMinutes == m,
+                                onClick = {
+                                    sleepMinutes = m
+                                    sleepEndAt = if (m == 0) null else System.currentTimeMillis() + m * 60_000L
+                                    if (m == 0) sleepLeftMs = 0L
+                                },
+                                label = { Text(if (m == 0) "Off" else "${m}m", fontSize = 12.sp) }
+                            )
+                        }
+                        if (sleepEndAt != null) Text("${(sleepLeftMs + 59_999L) / 60_000L}m left", color = Muted, fontSize = 12.sp)
+                    }
                 }
             } ?: Column(Modifier.fillMaxSize().padding(insets).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text("Choose a track to start listening.")
@@ -746,6 +902,8 @@ private fun NuvoraApp(player: ExoPlayer, themeIndex: Int, onThemeChange: (Int) -
             }
         }
     }
+
+    if (showQueue) QueueSheet(player, queueTracks, currentIndex) { showQueue = false }
 }
 
 private fun youtubeLinkFromIntent(intent: Intent?): String? {
@@ -884,7 +1042,7 @@ private fun StatusMessages(loading: Boolean, error: String?) {
 }
 
 @Composable
-private fun Cover(url: String?, modifier: Modifier = Modifier) {
+internal fun Cover(url: String?, modifier: Modifier = Modifier) {
     if (url != null) {
         AsyncImage(model = url, contentDescription = "Track artwork", modifier = modifier.clip(RoundedCornerShape(18.dp)))
     } else {
@@ -895,7 +1053,18 @@ private fun Cover(url: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TrackRow(track: MusicTrack, isActive: Boolean, onPlay: () -> Unit, onFavorite: () -> Unit, favorite: Boolean, onDownload: () -> Unit = {}) {
+private fun TrackRow(
+    track: MusicTrack,
+    isActive: Boolean,
+    onPlay: () -> Unit,
+    onFavorite: () -> Unit,
+    favorite: Boolean,
+    onDownload: () -> Unit = {},
+    onPlayNext: () -> Unit = {},
+    onAddToQueue: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
             .background(if (isActive) Blue.copy(alpha = 0.2f) else Panel)
@@ -917,8 +1086,41 @@ private fun TrackRow(track: MusicTrack, isActive: Boolean, onPlay: () -> Unit, o
         IconButton(onClick = onFavorite) {
             Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) Cyan else Muted)
         }
-        IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = Cyan) }
-        IconButton(onClick = onPlay) { Icon(Icons.Rounded.PlayArrow, contentDescription = "Play track", tint = Color.White) }
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(Icons.Rounded.MoreVert, contentDescription = "More options", tint = Muted)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Play next") },
+                    leadingIcon = { Icon(Icons.Rounded.PlaylistPlay, contentDescription = null) },
+                    onClick = { menuOpen = false; onPlayNext() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Add to queue") },
+                    leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, contentDescription = null) },
+                    onClick = { menuOpen = false; onAddToQueue() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Download") },
+                    leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
+                    onClick = { menuOpen = false; onDownload() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Share") },
+                    leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        val text = if (track.permalink.startsWith("https://")) "${track.title} \u00B7 ${track.artist}\n${track.permalink}" else "${track.title} \u00B7 ${track.artist}"
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }
+                        context.startActivity(Intent.createChooser(send, "Share track"))
+                    }
+                )
+            }
+        }
     }
 }
 
