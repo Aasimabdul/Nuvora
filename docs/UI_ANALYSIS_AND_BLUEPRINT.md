@@ -124,3 +124,10 @@ The Home header includes a visible **Source** control. Its picker currently list
 - Replace remaining hardcoded `Panel`, `Blue`, `Cyan` and `Muted` usage with theme-aware design tokens where appropriate.
 - Verify light-theme contrast, font scaling, dock hit targets, gesture navigation and three-button navigation on small and large screens.
 - Add focused tests for theme preference compatibility and dock layout where test infrastructure supports them.
+
+
+### Follow-up implementation notes
+- Replaced the former global fixed colour constants with Material theme tokens for backgrounds, surfaces, primary/secondary accents and muted text. This improves palette consistency across existing custom composables without changing provider/playback logic.
+- Added a Settings theme preview showing sample typography, primary/secondary surfaces and dock icons.
+- Bumped the app version to 0.6.1 / versionCode 15.
+- Full animation redesign and real-device screenshot QA remain outstanding; the theme preview is an in-app preview, not evidence of emulator/device testing.
