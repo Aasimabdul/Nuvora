@@ -54,6 +54,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -206,6 +209,16 @@ private fun decodePlayCounts(raw: String?): Map<String, Int> {
 }
 
 private const val DISCOVERY_TERM = "electronic chill"
+
+private fun providerLogoUrl(provider: String): String = when (provider) {
+    "YouTube Music" -> "https://music.youtube.com/favicon.ico"
+    "JioSaavn" -> "https://www.jiosaavn.com/favicon.ico"
+    "Audius" -> "https://audius.co/favicon.ico"
+    "Spotify" -> "https://open.spotify.com/favicon.ico"
+    "SoundCloud" -> "https://soundcloud.com/favicon.ico"
+    "Bandcamp" -> "https://bandcamp.com/favicon.ico"
+    else -> "https://www.jiosaavn.com/favicon.ico"
+}
 
 private fun formatTime(milliseconds: Long): String {
     val seconds = (milliseconds.coerceAtLeast(0L) / 1000L).toInt()
@@ -922,13 +935,13 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             Modifier.background(
                                 Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant)),
                                 RoundedCornerShape(22.dp)
-                            ).padding(horizontal = 12.dp, vertical = 8.dp)
+                            ).padding(horizontal = 14.dp, vertical = 12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Cover(track.artworkUrl, Modifier.size(42.dp))
-                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                                    Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Cover(track.artworkUrl, Modifier.size(56.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                    Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
                                     Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause")
@@ -942,7 +955,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     value = (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f),
                                     onValueChange = { positionMs = (it * durationMs).toLong() },
                                     onValueChangeFinished = { player.seekTo(positionMs) },
-                                    modifier = Modifier.fillMaxWidth().height(18.dp),
+                                    modifier = Modifier.fillMaxWidth().height(24.dp),
                                     thumb = { SliderDefaults.Thumb(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.secondary)) },
                                     colors = SliderDefaults.colors(
                                         thumbColor = MaterialTheme.colorScheme.secondary,
@@ -998,29 +1011,32 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("NUVORA", color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                        Text("Find your frequency.", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(color = Color(0xFF53E4E8))) { append("NU") }
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) { append("VORA") }
+                            },
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 3.2.sp
+                        )
                     }
                     OutlinedButton(
                         onClick = { showProviders = true },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         modifier = Modifier.widthIn(max = 190.dp)
                     ) {
-                        Icon(Icons.Rounded.LibraryMusic, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        AsyncImage(
+                            model = providerLogoUrl(selectedProvider),
+                            contentDescription = "$selectedProvider logo",
+                            modifier = Modifier.size(22.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Spacer(Modifier.width(7.dp))
                         Text(selectedProvider, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
                     }
                 }
-                Text(
-                    when (java.time.LocalTime.now().hour) {
-                        in 5..11 -> "Good morning. Find your frequency."
-                        in 12..16 -> "Good afternoon. Find your frequency."
-                        in 17..21 -> "Good evening. Find your frequency."
-                        else -> "Welcome back. Find your frequency."
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp)
-                )
                 SearchBar(
                     query,
                     { query = it },
