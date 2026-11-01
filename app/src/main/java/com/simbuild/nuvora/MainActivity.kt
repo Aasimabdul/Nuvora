@@ -369,6 +369,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var playlistQuery by remember { mutableStateOf("") }
+    var searchResultTab by remember { mutableIntStateOf(0) } // 0 = Songs, 1 = Playlists
     var saavnPlaylists by remember { mutableStateOf<List<JioSaavnPlaylist>>(emptyList()) }
     var tracks by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
     val knownTracks = remember {
@@ -958,35 +959,117 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 }
             }
             1 -> Column(Modifier.fillMaxSize().padding(insets)) {
-                Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 12.dp))
-                SearchBar(
-                    query,
-                    { query = it },
-                    { search(query) },
-                    { search(query) },
-                    placeholder = if (selectedProvider == "YouTube Music") "Search YouTube Music songs or artists…" else "Songs, artists, moods…"
-                )
-                StatusMessages(loading, error)
-                if (selectedProvider == "YouTube Music") {
-                    LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(youtubeResults, key = { it.videoId }) { result ->
-                            val track = result.toMusicTrack()
-                            TrackRow(
-                                track = track,
-                                isActive = active?.id == track.id,
-                                onPlay = { queueTracks = youtubeResults.map { it.toMusicTrack() }; playYouTubeResult(result) },
-                                onFavorite = { toggleFavorite(track) },
-                                favorite = track.id in favorites,
-                                onSelect = { toggleTrackSelection(track) },
-                                selected = track.id in selectedTrackIds
-                            )
+                Text("Search music", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 8.dp))
+                Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = searchResultTab == 0, onClick = { searchResultTab = 0 }, label = { Text("Songs") }, leadingIcon = { Icon(Icons.Rounded.MusicNote, contentDescription = null, modifier = Modifier.size(16.dp)) })
+                    FilterChip(selected = searchResultTab == 1, onClick = { searchResultTab = 1; playlistQuery = query }, label = { Text("Playlists") }, leadingIcon = { Icon(Icons.Rounded.QueueMusic, contentDescription = null, modifier = Modifier.size(16.dp)) })
+                }
+                if (searchResultTab == 0) {
+                    SearchBar(query, { query = it }, { search(query) }, { search(query) },
+                        placeholder = if (selectedProvider == "YouTube Music") "Search YouTube Music songs or artists…" else "Songs, artists, moods…")
+                    StatusMessages(loading, error)
+                    if (selectedProvider == "YouTube Music") {
+                        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(youtubeResults, key = { it.videoId }) { result ->
+                                val track = result.toMusicTrack()
+                                TrackRow(track, active?.id == track.id, { queueTracks = youtubeResults.map { it.toMusicTrack() }; playYouTubeResult(result) },
+                                    { toggleFavorite(track) }, track.id in favorites,
+                                    { Toast.makeText(context, "Direct download is unavailable for YouTube Music tracks.", Toast.LENGTH_SHORT).show() },
+                                    { toggleTrackSelection(track) }, track.id in selectedTrackIds)
+                            }
+                        }
+                    } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(tracks, key = { it.id }) { track ->
+                            TrackRow(track, active?.id == track.id, { queueTracks = tracks; play(track) },
+                                { toggleFavorite(track) }, track.id in favorites, { downloadTrack(context, track) },
+                                { toggleTrackSelection(track) }, track.id in selectedTrackIds)
                         }
                     }
-                } else LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(tracks, key = { it.id }) { track ->
-                        TrackRow(track, active?.id == track.id, { queueTracks = tracks; play(track) },
-                            { toggleFavorite(track) }, track.id in favorites, { downloadTrack(context, track) },
-                            { toggleTrackSelection(track) }, track.id in selectedTrackIds)
+                } else {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = playlistProvider == "YouTube Music", onClick = { playlistProvider = "YouTube Music" }, label = { Text("YouTube Music") })
+                        FilterChip(selected = playlistProvider == "JioSaavn", onClick = { playlistProvider = "JioSaavn" }, label = { Text("JioSaavn") })
+                    }
+                    SearchBar(
+                        query = query, onQuery = { query = it; playlistQuery = it },
+                        onSearch = {
+                            playlistQuery = query
+                            scope.launch {
+                                loading = true; error = null
+                                try {
+                                    if (playlistProvider == "YouTube Music") {
+                                        youtubePlaylists = YouTubeMusicPlaylistsRepository.searchPlaylists(query)
+                                        if (youtubePlaylists.isEmpty()) error = "No public YouTube Music playlists found."
+                                    } else {
+                                        saavnPlaylists = JioSaavnRepository.searchPlaylists(query)
+                                        if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found."
+                                    }
+                                } catch (_: Exception) { error = "Playlist search failed. The provider may be unavailable." }
+                                finally { loading = false }
+                            }
+                        },
+                        onRefresh = {
+                            scope.launch {
+                                loading = true; error = null
+                                try {
+                                    if (playlistProvider == "YouTube Music") youtubePlaylists = YouTubeMusicPlaylistsRepository.searchPlaylists(query)
+                                    else saavnPlaylists = JioSaavnRepository.searchPlaylists(query)
+                                } catch (_: Exception) { error = "Playlist search failed. Try again." }
+                                finally { loading = false }
+                            }
+                        }, placeholder = "Search playlist names…")
+                    StatusMessages(loading, error)
+                    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (playlistProvider == "YouTube Music") items(youtubePlaylists, key = { "search-ytplaylist-${it.id}" }) { playlist ->
+                            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    scope.launch {
+                                        loading = true; error = null
+                                        try {
+                                            val imported = YouTubeMusicPlaylistsRepository.getPlaylistTracks(playlist.id)
+                                            imported.forEach(::rememberTrack)
+                                            if (imported.isEmpty()) error = "This playlist has no accessible public tracks."
+                                            else { queueTracks = imported; play(imported.first()); tab = 4 }
+                                        } catch (_: Exception) { error = "Could not import this playlist." }
+                                        finally { loading = false }
+                                    }
+                                }) {
+                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Rounded.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(34.dp))
+                                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                        Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        Text("YouTube Music playlist · Tap to open", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    }
+                                    Icon(Icons.Rounded.ChevronRight, contentDescription = null)
+                                }
+                            }
+                        }
+                        if (playlistProvider == "JioSaavn") items(saavnPlaylists, key = { "search-saavn-${it.id}" }) { playlist ->
+                            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    scope.launch {
+                                        loading = true; error = null
+                                        try {
+                                            val imported = JioSaavnRepository.getPlaylistTracks(playlist.id)
+                                            imported.forEach(::rememberTrack)
+                                            if (imported.isEmpty()) error = "This playlist has no accessible tracks."
+                                            else { queueTracks = imported; play(imported.first()); tab = 4 }
+                                        } catch (_: Exception) { error = "Could not import this playlist." }
+                                        finally { loading = false }
+                                    }
+                                }) {
+                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Rounded.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(34.dp))
+                                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                        Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        Text("JioSaavn playlist · Tap to open", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    }
+                                    Icon(Icons.Rounded.ChevronRight, contentDescription = null)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1151,49 +1234,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 leadingIcon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null, modifier = Modifier.size(16.dp)) }
                             )
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedTextField(
-                                value = playlistQuery,
-                                onValueChange = { playlistQuery = it },
-                                modifier = Modifier.weight(1f),
-                                placeholder = { Text("Search playlist names") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(16.dp),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                keyboardActions = KeyboardActions(onSearch = {
-                                    scope.launch {
-                                        loading = true; error = null
-                                        try {
-                                            if (playlistProvider == "YouTube Music") {
-                                                youtubePlaylists = YouTubeMusicPlaylistsRepository.searchPlaylists(playlistQuery)
-                                                if (youtubePlaylists.isEmpty()) error = "No YouTube Music playlists found. Try a different search."
-                                            } else {
-                                                saavnPlaylists = JioSaavnRepository.searchPlaylists(playlistQuery)
-                                                if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found."
-                                            }
-                                        } catch (e: Exception) {
-                                            error = "Playlist search failed. The provider's public endpoint may be unavailable."
-                                        } finally { loading = false }
-                                    }
-                                })
-                            )
-                            IconButton(onClick = {
-                                scope.launch {
-                                    loading = true; error = null
-                                    try {
-                                        if (playlistProvider == "YouTube Music") {
-                                            youtubePlaylists = YouTubeMusicPlaylistsRepository.searchPlaylists(playlistQuery)
-                                            if (youtubePlaylists.isEmpty()) error = "No YouTube Music playlists found. Try a different search."
-                                        } else {
-                                            saavnPlaylists = JioSaavnRepository.searchPlaylists(playlistQuery)
-                                            if (saavnPlaylists.isEmpty()) error = "No JioSaavn playlists found."
-                                        }
-                                    } catch (e: Exception) {
-                                        error = "Playlist search failed. The provider's public endpoint may be unavailable."
-                                    } finally { loading = false }
-                                }
-                            }) { Icon(Icons.Rounded.Search, contentDescription = "Search playlists", tint = MaterialTheme.colorScheme.secondary) }
-                        }
+                        Text("Find playlists from Search → Playlists.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
                     }
                     if (playlistProvider == "YouTube Music") {
                         items(youtubePlaylists, key = { "ytplaylist-${it.id}" }) { playlist ->
@@ -1278,7 +1319,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     item { Spacer(Modifier.height(18.dp)) }
                 }
             }
-            3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            3 -> Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Text("Appearance", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Box {
@@ -1286,15 +1327,6 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         Icon(Icons.Rounded.Palette, contentDescription = null)
                         Text("  Theme: ${themes[themeIndex].label}", modifier = Modifier.weight(1f))
                         Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
-                    }
-                    DropdownMenu(expanded = showThemes, onDismissRequest = { showThemes = false }) {
-                        themes.forEachIndexed { index, theme ->
-                            DropdownMenuItem(
-                                text = { Text(theme.label) },
-                                leadingIcon = { if (index == themeIndex) Icon(Icons.Rounded.Check, contentDescription = null) },
-                                onClick = { onThemeChange(index); showThemes = false }
-                            )
-                        }
                     }
                 }
                 Surface(
@@ -1362,21 +1394,21 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 Text("Home screen sections", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Mood cards", modifier = Modifier.weight(1f))
-                    Switch(checked = showMoodSection, onCheckedChange = {
+                    Switch(checked = showMoodSection, colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary, uncheckedThumbColor = MaterialTheme.colorScheme.secondary, checkedTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f), uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant), onCheckedChange = {
                         showMoodSection = it
                         prefs.edit().putBoolean("home_moods", it).apply()
                     })
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Recently played", modifier = Modifier.weight(1f))
-                    Switch(checked = showRecentSection, onCheckedChange = {
+                    Switch(checked = showRecentSection, colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary, uncheckedThumbColor = MaterialTheme.colorScheme.secondary, checkedTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f), uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant), onCheckedChange = {
                         showRecentSection = it
                         prefs.edit().putBoolean("home_recent", it).apply()
                     })
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Horizontal music carousel", modifier = Modifier.weight(1f))
-                    Switch(checked = showCarouselSection, onCheckedChange = {
+                    Switch(checked = showCarouselSection, colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary, uncheckedThumbColor = MaterialTheme.colorScheme.secondary, checkedTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f), uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant), onCheckedChange = {
                         showCarouselSection = it
                         prefs.edit().putBoolean("home_carousel", it).apply()
                     })
@@ -1511,42 +1543,28 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
-                        IconButton(onClick = {
-                            shuffleEnabled = !shuffleEnabled
-                            applyModes()
-                        }) {
-                            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (shuffleEnabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        IconButton(onClick = { skipPrevious() }) {
-                            Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous track", modifier = Modifier.size(30.dp))
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.primary,
-                            shadowElevation = 12.dp,
-                            modifier = Modifier.size(70.dp).clickable { if (player.isPlaying) player.pause() else player.play() }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause", tint = Color.White, modifier = Modifier.size(40.dp))
+                    Surface(shape = RoundedCornerShape(30.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.68f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)), shadowElevation = 12.dp,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                        Row(Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), MaterialTheme.colorScheme.secondary.copy(alpha = 0.10f), MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)))).padding(horizontal = 6.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+                            IconButton(onClick = { shuffleEnabled = !shuffleEnabled; applyModes() }) {
+                                Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (shuffleEnabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                        }
-                        IconButton(onClick = { skipNext() }) {
-                            Icon(Icons.Rounded.SkipNext, contentDescription = "Next track", modifier = Modifier.size(30.dp))
-                        }
-                        IconButton(onClick = {
-                            repeatMode = when (repeatMode) {
-                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                                else -> Player.REPEAT_MODE_OFF
+                            IconButton(onClick = { skipPrevious() }) { Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous track", modifier = Modifier.size(30.dp)) }
+                            Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f)), shadowElevation = 16.dp,
+                                modifier = Modifier.size(70.dp).clickable { if (player.isPlaying) player.pause() else player.play() }) {
+                                Box(contentAlignment = Alignment.Center) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause", tint = Color.White, modifier = Modifier.size(40.dp)) }
                             }
-                            applyModes()
-                        }) {
-                            Icon(
-                                if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                                contentDescription = "Repeat mode",
-                                tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.secondary
-                            )
+                            IconButton(onClick = { skipNext() }) { Icon(Icons.Rounded.SkipNext, contentDescription = "Next track", modifier = Modifier.size(30.dp)) }
+                            IconButton(onClick = {
+                                repeatMode = when (repeatMode) { Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL; Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
+                                applyModes()
+                            }) {
+                                Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                                    contentDescription = "Repeat mode", tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.secondary)
+                            }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -1594,6 +1612,38 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
             }
         }
     }
+    }
+    if (showThemes) {
+        ModalBottomSheet(onDismissRequest = { showThemes = false }, containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface, tonalElevation = 20.dp) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Choose your look", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("16 palettes · changes apply instantly", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                LazyColumn(Modifier.heightIn(max = 440.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(themes.size) { index ->
+                        val theme = themes[index]
+                        Surface(shape = RoundedCornerShape(18.dp),
+                            color = if (index == themeIndex) MaterialTheme.colorScheme.primary.copy(alpha = 0.13f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+                            border = BorderStroke(1.dp, if (index == themeIndex) MaterialTheme.colorScheme.primary.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)),
+                            modifier = Modifier.fillMaxWidth().clickable { onThemeChange(index); showThemes = false }) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    listOf(theme.background, theme.surface, theme.primary, theme.secondary).forEach { swatch ->
+                                        Box(Modifier.size(18.dp).clip(RoundedCornerShape(6.dp)).background(swatch).border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), RoundedCornerShape(6.dp)))
+                                    }
+                                }
+                                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                    Text(theme.label, fontWeight = if (index == themeIndex) FontWeight.Bold else FontWeight.Medium)
+                                    Text(if (theme.dynamic) "System wallpaper colours" else if (theme.isLight) "Light palette" else "Dark palette",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                                }
+                                if (index == themeIndex) Icon(Icons.Rounded.CheckCircle, contentDescription = "Selected theme", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     if (showProviders) {
         ModalBottomSheet(
@@ -1851,9 +1901,7 @@ private fun TrackRow(
         IconButton(onClick = onFavorite) {
             Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (!track.id.startsWith("youtube-")) {
-            IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = MaterialTheme.colorScheme.secondary) }
-        }
+        IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = MaterialTheme.colorScheme.secondary) }
         if (onSelect != null) {
             IconButton(onClick = onSelect) {
                 Icon(if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.PlaylistAdd,
