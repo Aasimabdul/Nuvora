@@ -247,10 +247,18 @@ private fun explainPlaybackFailure(error: PlaybackException): String {
 }
 
 private fun downloadTrack(context: Context, track: MusicTrack) {
+    // Search/watch pages are not direct audio files. Never enqueue them as fake .mp3 downloads.
+    if (track.id.startsWith("youtube-") || track.streamUrl.contains("youtube.com/watch", ignoreCase = true) ||
+        track.streamUrl.contains("music.youtube.com", ignoreCase = true) || track.streamUrl.contains("youtu.be/", ignoreCase = true)) {
+        Toast.makeText(context, "Direct audio downloads are not available for this source. Save the playlist instead.", Toast.LENGTH_LONG).show()
+        return
+    }
     try {
         val safeTitle = track.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(70).ifBlank { "Nuvora track" }
         val audioUri = Uri.parse(track.streamUrl)
         require(audioUri.scheme.equals("https", ignoreCase = true) && !audioUri.host.isNullOrBlank()) { "No downloadable audio URL" }
+        val ext = audioUri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()
+            ?.takeIf { it in setOf("mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "webm") } ?: "audio"
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val request = DownloadManager.Request(audioUri)
             .setTitle(safeTitle)
@@ -258,7 +266,7 @@ private fun downloadTrack(context: Context, track: MusicTrack) {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "Nuvora/$safeTitle.mp3")
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "Nuvora/$safeTitle.$ext")
         manager.enqueue(request)
         val artwork = normalizeArtworkUrl(track.artworkUrl)
         if (!artwork.isNullOrBlank() && artwork.startsWith("https://", ignoreCase = true)) runCatching {
@@ -1028,9 +1036,9 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 withStyle(SpanStyle(color = Color(0xFF53E4E8))) { append("NU") }
                                 withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) { append("VORA") }
                             },
-                            fontSize = 15.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 3.2.sp
+                            letterSpacing = 2.5.sp
                         )
                     }
                     OutlinedButton(
@@ -1038,12 +1046,15 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         modifier = Modifier.widthIn(max = 190.dp)
                     ) {
-                        AsyncImage(
-                            model = providerLogoUrl(selectedProvider),
-                            contentDescription = "$selectedProvider logo",
-                            modifier = Modifier.size(22.dp),
-                            contentScale = ContentScale.Fit
-                        )
+                        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.MusicNote, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
+                            AsyncImage(
+                                model = providerLogoUrl(selectedProvider),
+                                contentDescription = "$selectedProvider logo",
+                                modifier = Modifier.size(22.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
                         Spacer(Modifier.width(7.dp))
                         Text(selectedProvider, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
@@ -1959,6 +1970,12 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                         tint = if (provider == selectedProvider) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(21.dp)
                                     )
+                                    AsyncImage(
+                                        model = providerLogoUrl(provider),
+                                        contentDescription = "$provider logo",
+                                        modifier = Modifier.size(24.dp),
+                                        contentScale = ContentScale.Fit
+                                    )
                                 }
                             }
                             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
@@ -2143,12 +2160,13 @@ private fun SearchBar(
     onRefresh: () -> Unit,
     placeholder: String = "Songs, artists, moods…"
 ) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
-            value = query, onValueChange = onQuery, modifier = Modifier.weight(1f),
-            placeholder = { Text(placeholder) },
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            shape = RoundedCornerShape(18.dp), singleLine = true,
+            value = query, onValueChange = onQuery, modifier = Modifier.weight(1f).heightIn(min = 52.dp, max = 58.dp),
+            placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+            shape = RoundedCornerShape(16.dp), singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() })
         )
