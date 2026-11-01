@@ -111,11 +111,14 @@ object YouTubeMusicRepository {
             ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("musicThumbnailRenderer")
                 ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
             ?: renderer.optJSONObject("thumbnailRenderer")?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
-        val artwork = thumbs?.let { array ->
+        val parsedArtwork = thumbs?.let { array ->
             (array.length() - 1 downTo 0).firstNotNullOfOrNull { index ->
                 normalizeArtworkUrl(array.optJSONObject(index)?.optString("url"))
             }
-        } ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+        }
+        // Keep a stable YouTube thumbnail fallback even when InnerTube's nested
+        // artwork shape changes or returns an inaccessible image URL.
+        val artwork = parsedArtwork ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
         val duration = renderer.optJSONObject("lengthText")?.optString("simpleText")
             ?: renderer.optJSONObject("lengthText")?.let(::firstText)
             ?: ""
