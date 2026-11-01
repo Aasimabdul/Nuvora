@@ -41,7 +41,7 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.5.2
+## Current development version: v0.6.1
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
 - Fixed nested YouTube Music thumbnail parsing, added YouTube video-thumbnail fallbacks, normalized CDN image URLs, improved image-load fallbacks, and migrated saved YouTube tracks that lacked artwork.
@@ -67,4 +67,6 @@ The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtra
 - Added Android 12+ system dynamic colour support for the Material You Dynamic theme, with a normal palette fallback on older Android versions.
 - Fixed the bottom navigation sizing constraint: the dock no longer forces Material 3 NavigationBar into a 68dp height that can clip its icon/label layout. It uses a responsive minimum height and explicit system-bar inset handling.
 - Updated the dock surface and selected/unselected item colours to follow the active Material theme.
+- Replaced legacy fixed custom UI colours with active Material theme tokens so the new palettes affect more of the interface consistently.
+- Added a live Settings theme preview with sample cards, typography, accent surfaces and dock icons.
 - This is an incremental UI foundation. The complete Liquid Glass/Neomorphism treatment across every screen, motion polish, and device/emulator QA still require validation before release.
