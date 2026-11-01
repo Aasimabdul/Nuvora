@@ -59,7 +59,8 @@ class PlaybackService : MediaSessionService() {
                     DefaultDataSource.Factory(
                         this,
                         DefaultHttpDataSource.Factory()
-                            .setUserAgent("Nuvora-Android/0.6")
+                            .setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
+                            .setDefaultRequestProperties(mapOf("Accept" to "*/*", "Accept-Language" to "en-US,en;q=0.9"))
                             .setAllowCrossProtocolRedirects(true)
                     )
                 )
