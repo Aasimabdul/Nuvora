@@ -210,7 +210,7 @@ private fun NuvoraApp(player: Player, themeIndex: Int, onThemeChange: (Int) -> U
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     val scope = rememberCoroutineScope()
-    val queue = remember { mutableListOf<MusicTrack>() }
+    val queue = remember { mutableStateListOf<MusicTrack>() }
     var shuffleOn by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
     var showQueue by remember { mutableStateOf(false) }
