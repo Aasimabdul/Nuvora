@@ -41,9 +41,10 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.5.1
+## Current development version: v0.5.2
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
+- Fixed nested YouTube Music thumbnail parsing, added YouTube video-thumbnail fallbacks, normalized CDN image URLs, improved image-load fallbacks, and migrated saved YouTube tracks that lacked artwork.
 - Improved direct-stream HTTP headers and playback error/retry feedback. Playback remains best-effort because YouTube does not provide a general official public audio-stream API.
 - Added persistent library metadata, favourites, recent history, and most-played counts.
 - Added local playlist creation from manually selected tracks and playlist import attempts for public YouTube Music/JioSaavn playlists.
