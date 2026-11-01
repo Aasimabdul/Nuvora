@@ -41,7 +41,7 @@ The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`. GitHub 
 
 YouTube Music support relies on undocumented service behavior and can stop working without notice. Nuvora does not bypass DRM, account checks, age restrictions, regional availability, or other access controls. Streams may be unavailable for some videos. Respect the rights and terms associated with each service.
 
-## Current development version: v0.6.2
+## Current development version: v0.6.3
 
 - Fixed Home discovery/trending so YouTube Music search results render in the Home sections instead of blank catalogue cards.
 - Fixed nested YouTube Music thumbnail parsing, added YouTube video-thumbnail fallbacks, normalized CDN image URLs, improved image-load fallbacks, and migrated saved YouTube tracks that lacked artwork.
@@ -81,3 +81,13 @@ The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtra
 - Wraps Now Playing transport controls in a translucent theme-aware glass surface.
 - Routes playable tracks through Media3 MediaSession when connected, enabling Android media notification/lock-screen controls for supported streams across providers. Validate this on-device.
 - In-place APK updates require a consistent signing certificate. CI accepts a stable debug keystore via the `NUVORA_DEBUG_KEYSTORE_BASE64` repository secret. Do not commit the private keystore; without this secret, debug APK signatures may differ between CI runs.
+
+
+## v0.6.3 player usability updates
+
+- Reduces crowding on track rows: favourite and More actions remain visible while queue, playlist, download and equalizer actions move into the overflow menu.
+- Adds local playlist creation and add-to-playlist actions from track and Now Playing menus.
+- Adds a custom sleep timer (1–720 minutes), built-in equalizer presets, custom five-band levels and saved user presets.
+- Adds a subtle animated gradient to Now Playing.
+- Downloads available artwork separately to Pictures/Nuvora/Artwork alongside eligible audio downloads in Music/Nuvora.
+- Audio-effect behavior and album art downloads depend on Android device and provider support; verify on-device.
