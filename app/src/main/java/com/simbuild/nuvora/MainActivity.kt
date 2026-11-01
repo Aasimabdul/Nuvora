@@ -2152,7 +2152,7 @@ private fun SearchBar(
             placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp) },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
             shape = RoundedCornerShape(16.dp), singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            textStyle = MaterialTheme.typography.bodyMedium,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() })
         )
