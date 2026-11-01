@@ -99,3 +99,28 @@ The Home header includes a visible **Source** control. Its picker currently list
 - `PlaybackService` (Media3 `MediaSessionService`) owns a dedicated ExoPlayer for official (Audius) tracks; the UI connects with a `MediaController`. Other providers keep the activity-owned player.
 - The UI owns the queue (`queueTracks`). Each service track is played on its own; auto-advance and the notification next/previous buttons are routed back to the UI through `PlaybackBridge`. Limitation: if the activity is destroyed while music plays, the current track continues but next/previous and auto-advance stop until the app is reopened.
 - `QueueSheet` is provider-agnostic and only edits the UI queue through callbacks.
+
+
+## 9. Pixel-inspired Liquid Glass + Neomorphism UI overhaul (v0.6.1 in progress)
+
+### Repository audit
+- Current implementation source is the Nuvora repository; the MuPlayer repository is a reference for preserving the original app's concepts and identity.
+- The current Nuvora UI is concentrated in `MainActivity.kt` (approximately 1,800 lines in the reviewed v0.6.0 source), so broad visual changes should be incremental and extracted into reusable components when safe.
+- The current palette list contained five entries: Neon Blue, AMOLED Black, Purple Night, Forest and Light.
+- The bottom navigation explicitly forced Material 3 `NavigationBar` to 68dp. This is below the component's normal layout needs and can constrain/clamp its icon and label layout. The mini-player is rendered above the dock in the same bottom bar column.
+- Theme switching persisted an integer preference, but custom surfaces and accent colours are still hardcoded in parts of the UI. Full palette coverage needs a follow-up token/component pass rather than claiming every screen is already themed.
+
+### Implemented in this branch
+- Retained the five original theme entries in the same order and added new theme palettes: Midnight Navy, Pixel Blue, Liquid Glass, Neo Blue, Arctic Cyan, Aurora, Sunset Coral, Pearl Light, Material You Dynamic, Graphite Silver and Ocean Teal.
+- Added a theme metadata flag for light palettes and a dynamic-colour flag. The Material You Dynamic palette uses Android 12+ system dynamic colours when available; older versions fall back to the defined theme palette.
+- Replaced the fixed 68dp dock constraint with a responsive minimum-height NavigationBar and explicitly handled navigation-bar insets.
+- Updated the dock surface, border, selected indicator and navigation item colours to use the active Material colour scheme.
+- Theme preference remains stored under the existing `nuvora_settings/theme_index` key. Existing theme indices are preserved by keeping the original entries first.
+
+### Remaining validation / follow-up
+- Build and inspect this branch in GitHub Actions before merging. No build/CI result is claimed by this documentation change alone.
+- Capture real emulator/device screenshots after the build; generated design concepts are not implementation screenshots.
+- Continue the Liquid Glass/Neomorphism pass for search, cards, mini-player, queue and Now Playing using reusable theme tokens.
+- Replace remaining hardcoded `Panel`, `Blue`, `Cyan` and `Muted` usage with theme-aware design tokens where appropriate.
+- Verify light-theme contrast, font scaling, dock hit targets, gesture navigation and three-button navigation on small and large screens.
+- Add focused tests for theme preference compatibility and dock layout where test infrastructure supports them.
