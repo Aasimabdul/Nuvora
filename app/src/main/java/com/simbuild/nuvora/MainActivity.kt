@@ -1028,9 +1028,9 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 withStyle(SpanStyle(color = Color(0xFF53E4E8))) { append("NU") }
                                 withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) { append("VORA") }
                             },
-                            fontSize = 15.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 3.2.sp
+                            letterSpacing = 2.5.sp
                         )
                     }
                     OutlinedButton(
@@ -1038,12 +1038,15 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         modifier = Modifier.widthIn(max = 190.dp)
                     ) {
-                        AsyncImage(
-                            model = providerLogoUrl(selectedProvider),
-                            contentDescription = "$selectedProvider logo",
-                            modifier = Modifier.size(22.dp),
-                            contentScale = ContentScale.Fit
-                        )
+                        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.MusicNote, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
+                            AsyncImage(
+                                model = providerLogoUrl(selectedProvider),
+                                contentDescription = "$selectedProvider logo",
+                                modifier = Modifier.size(22.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
                         Spacer(Modifier.width(7.dp))
                         Text(selectedProvider, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
@@ -2143,12 +2146,13 @@ private fun SearchBar(
     onRefresh: () -> Unit,
     placeholder: String = "Songs, artists, moods…"
 ) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
-            value = query, onValueChange = onQuery, modifier = Modifier.weight(1f),
-            placeholder = { Text(placeholder) },
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            shape = RoundedCornerShape(18.dp), singleLine = true,
+            value = query, onValueChange = onQuery, modifier = Modifier.weight(1f).heightIn(min = 52.dp, max = 58.dp),
+            placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+            shape = RoundedCornerShape(16.dp), singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() })
         )
