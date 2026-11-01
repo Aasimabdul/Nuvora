@@ -78,16 +78,16 @@ private data class NuvoraTheme(
 
 /** Existing themes are kept first so saved theme indices remain compatible. */
 private val themes = listOf(
-    NuvoraTheme("Neon MaterialTheme.colorScheme.primary", Color(0xFF080D1A), Color(0xFF121B2E), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
+    NuvoraTheme("Neon Blue", Color(0xFF080D1A), Color(0xFF121B2E), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
     NuvoraTheme("AMOLED Black", Color(0xFF000000), Color(0xFF101010), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
-    NuvoraTheme("Purple MaterialTheme.colorScheme.background", Color(0xFF10091D), Color(0xFF21152F), Color(0xFFB18CFF), Color(0xFFE0B8FF)),
+    NuvoraTheme("Purple Night", Color(0xFF10091D), Color(0xFF21152F), Color(0xFFB18CFF), Color(0xFFE0B8FF)),
     NuvoraTheme("Forest", Color(0xFF071510), Color(0xFF10251D), Color(0xFF48C78E), Color(0xFF9DE8C0)),
     NuvoraTheme("Light", Color(0xFFF4F7FC), Color(0xFFFFFFFF), Color(0xFF245DCE), Color(0xFF007F91), isLight = true),
     NuvoraTheme("Midnight Navy", Color(0xFF07111F), Color(0xFF12233A), Color(0xFF4F9BFF), Color(0xFF86D7FF)),
-    NuvoraTheme("Pixel MaterialTheme.colorScheme.primary", Color(0xFF0B1424), Color(0xFF18283E), Color(0xFF8AB4F8), Color(0xFFD3E3FD)),
+    NuvoraTheme("Pixel Blue", Color(0xFF0B1424), Color(0xFF18283E), Color(0xFF8AB4F8), Color(0xFFD3E3FD)),
     NuvoraTheme("Liquid Glass", Color(0xFF091322), Color(0xB8203048), Color(0xFF72B7FF), Color(0xFF9BE7F5)),
-    NuvoraTheme("Neo MaterialTheme.colorScheme.primary", Color(0xFF111B2C), Color(0xFF17243A), Color(0xFF65A7FF), Color(0xFF8BC8FF)),
-    NuvoraTheme("Arctic MaterialTheme.colorScheme.secondary", Color(0xFF07171D), Color(0xFF112A33), Color(0xFF4DE1E6), Color(0xFFB2FAF4)),
+    NuvoraTheme("Neo Blue", Color(0xFF111B2C), Color(0xFF17243A), Color(0xFF65A7FF), Color(0xFF8BC8FF)),
+    NuvoraTheme("Arctic Cyan", Color(0xFF07171D), Color(0xFF112A33), Color(0xFF4DE1E6), Color(0xFFB2FAF4)),
     NuvoraTheme("Aurora", Color(0xFF100F25), Color(0xFF211D40), Color(0xFF9D91FF), Color(0xFF68D8F2)),
     NuvoraTheme("Sunset Coral", Color(0xFF21121A), Color(0xFF35202A), Color(0xFFFF8A80), Color(0xFFFFC2A1)),
     NuvoraTheme("Pearl Light", Color(0xFFF5F4F8), Color(0xFFFFFFFF), Color(0xFF6555A5), Color(0xFFB44C73), isLight = true),
