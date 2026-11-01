@@ -116,9 +116,9 @@ object YouTubeMusicRepository {
                 normalizeArtworkUrl(array.optJSONObject(index)?.optString("url"))
             }
         }
-        // Keep a stable YouTube thumbnail fallback even when InnerTube's nested
-        // artwork shape changes or returns an inaccessible image URL.
-        val artwork = parsedArtwork ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+        // Prefer YouTube's stable video-thumbnail endpoint. InnerTube artwork URLs
+        // may be absent, oddly nested, or inaccessible to Coil on some devices.
+        val artwork = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
         val duration = renderer.optJSONObject("lengthText")?.optString("simpleText")
             ?: renderer.optJSONObject("lengthText")?.let(::firstText)
             ?: ""
