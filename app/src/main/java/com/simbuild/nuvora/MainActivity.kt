@@ -2,6 +2,7 @@ package com.simbuild.nuvora
 
 import android.Manifest
 import android.app.DownloadManager
+import android.media.audiofx.Equalizer
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -46,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -293,6 +295,10 @@ private val LocalQueueActions = compositionLocalOf<QueueActions?> { null }
 
 class MainActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
+    private var localEqualizer: Equalizer? = null
+    private var localEqualizerSessionId: Int = 0
+    private var localEqEnabled: Boolean = false
+    private var localEqLevels: List<Short> = List(5) { 0.toShort() }
     private var sharedYouTubeLink by mutableStateOf<String?>(null)
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var servicePlayer by mutableStateOf<MediaController?>(null)
@@ -318,6 +324,12 @@ class MainActivity : ComponentActivity() {
                 )
             )
             .build()
+        PlaybackBridge.applyLocalEqualizer = { enabled, levels -> applyLocalEqualizer(enabled, levels) }
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) applyLocalEqualizer(localEqEnabled, localEqLevels)
+            }
+        })
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -352,6 +364,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun applyLocalEqualizer(enabled: Boolean, levels: List<Short>) {
+        localEqEnabled = enabled
+        localEqLevels = levels.toList()
+        val sessionId = player.audioSessionId
+        // The audio session may be unset until the first track is ready.
+        if (sessionId <= 0) return
+        if (localEqualizer == null || localEqualizerSessionId != sessionId) {
+            runCatching { localEqualizer?.release() }
+            localEqualizer = runCatching { Equalizer(0, sessionId) }.getOrNull()
+            localEqualizerSessionId = if (localEqualizer != null) sessionId else 0
+        }
+        val effect = localEqualizer ?: return
+        runCatching {
+            val range = effect.bandLevelRange
+            val count = effect.numberOfBands.toInt()
+            for (band in 0 until count) {
+                val index = if (count <= 1) 0 else band * (levels.size - 1) / (count - 1)
+                effect.setBandLevel(band.toShort(), levels.getOrElse(index) { 0 }.coerceIn(range[0], range[1]))
+            }
+            effect.enabled = enabled && count > 0
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -361,6 +396,11 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         PlaybackBridge.onNext = null
         PlaybackBridge.onPrevious = null
+        PlaybackBridge.applyLocalEqualizer = null
+        runCatching { localEqualizer?.enabled = false }
+        runCatching { localEqualizer?.release() }
+        localEqualizer = null
+        localEqualizerSessionId = 0
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controllerFuture = null
         player.release()
@@ -485,8 +525,10 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         }
     }
 
-    LaunchedEffect(eqEnabled, eqLevels.toList(), servicePlayer) {
-        PlaybackBridge.applyEqualizer?.invoke(eqEnabled, eqLevels.map { (it * 100).toShort() })
+    LaunchedEffect(eqEnabled, eqLevels.toList(), servicePlayer, localPlayer) {
+        val requestedLevels = eqLevels.map { (it * 100).toShort() }
+        PlaybackBridge.applyEqualizer?.invoke(eqEnabled, requestedLevels)
+        PlaybackBridge.applyLocalEqualizer?.invoke(eqEnabled, requestedLevels)
     }
 
     LaunchedEffect(sleepTimerMinutes) {
@@ -1587,14 +1629,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         }
                         Box {
                             IconButton(onClick = { showNowPlayingMenu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More player options") }
-                            DropdownMenu(expanded = showNowPlayingMenu, onDismissRequest = { showNowPlayingMenu = false }) {
-                                DropdownMenuItem(text = { Text("Add to queue") }, leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, null) }, onClick = { showNowPlayingMenu = false; addToQueue(track) })
-                                DropdownMenuItem(text = { Text("Add to playlist") }, leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) }, onClick = { showNowPlayingMenu = false; trackForPlaylist = track; playlistNameForTrack = "" })
-                                DropdownMenuItem(text = { Text("Equalizer") }, leadingIcon = { Icon(Icons.Rounded.GraphicEq, null) }, onClick = { showNowPlayingMenu = false; showEqualizer = true })
-                                DropdownMenuItem(text = { Text("Sleep timer") }, leadingIcon = { Icon(Icons.Rounded.Timer, null) }, onClick = { showNowPlayingMenu = false; customSleepMinutes = "30"; showSleepTimer = true })
-                                DropdownMenuItem(text = { Text("Show queue") }, leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) }, onClick = { showNowPlayingMenu = false; showQueue = true })
-                                DropdownMenuItem(text = { Text("Download audio") }, leadingIcon = { Icon(Icons.Rounded.Download, null) }, onClick = { showNowPlayingMenu = false; if (track.id.startsWith("youtube-")) Toast.makeText(context, "Direct downloads unavailable for this YouTube Music item.", Toast.LENGTH_SHORT).show() else downloadTrack(context, track) })
-                            }
+                            // Player actions are provided by the modern action sheet below the screen content.
                         }
                     }
                     Spacer(Modifier.height(14.dp))
@@ -1757,6 +1792,35 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 if (index == themeIndex) Icon(Icons.Rounded.CheckCircle, contentDescription = "Selected theme", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+    if (showNowPlayingMenu) {
+        active?.let { track ->
+            ModalBottomSheet(
+                onDismissRequest = { showNowPlayingMenu = false },
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 20.dp
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text("PLAYER CONTROLS", color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text(track.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Spacer(Modifier.height(8.dp))
+                    MenuSheetAction("Add to queue", Icons.Rounded.PlaylistAdd, "Keep it in Up next") { showNowPlayingMenu = false; addToQueue(track) }
+                    MenuSheetAction("Add to playlist", Icons.Rounded.QueueMusic, "Save it to a Nuvora playlist") { showNowPlayingMenu = false; trackForPlaylist = track; playlistNameForTrack = "" }
+                    MenuSheetAction("Equalizer", Icons.Rounded.GraphicEq, "Tune bass, mids and treble") { showNowPlayingMenu = false; showEqualizer = true }
+                    MenuSheetAction("Sleep timer", Icons.Rounded.Timer, if (sleepTimerMinutes > 0) "Active · $sleepTimerMinutes minutes" else "Set a playback timer") { showNowPlayingMenu = false; customSleepMinutes = "30"; showSleepTimer = true }
+                    MenuSheetAction("Show queue", Icons.Rounded.QueueMusic, "Manage upcoming tracks") { showNowPlayingMenu = false; showQueue = true }
+                    MenuSheetAction("Download audio", Icons.Rounded.Download, "Save eligible audio and artwork") {
+                        showNowPlayingMenu = false
+                        if (track.id.startsWith("youtube-")) Toast.makeText(context, "Direct downloads unavailable for this YouTube Music item.", Toast.LENGTH_SHORT).show() else downloadTrack(context, track)
                     }
                 }
             }
@@ -2095,48 +2159,75 @@ private fun TrackRow(
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Rounded.MoreVert, contentDescription = "More options", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Play next") },
-                        leadingIcon = { Icon(Icons.Rounded.PlaylistPlay, contentDescription = null) },
-                        onClick = { menuOpen = false; queueActions.playNext(track) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Add to queue") },
-                        leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, contentDescription = null) },
-                        onClick = { menuOpen = false; queueActions.addToQueue(track) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Add to playlist") },
-                        leadingIcon = { Icon(Icons.Rounded.QueueMusic, contentDescription = null) },
-                        onClick = { menuOpen = false; queueActions.addToPlaylist(track) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Download audio + artwork") },
-                        leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
-                        onClick = { menuOpen = false; queueActions.download(track) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Equalizer") },
-                        leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null) },
-                        onClick = { menuOpen = false; queueActions.openEqualizer() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Share") },
-                        leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            val text = if (track.permalink.startsWith("https://")) "${track.title} \u00B7 ${track.artist}\n${track.permalink}" else "${track.title} \u00B7 ${track.artist}"
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, text)
+                if (menuOpen) {
+                    ModalBottomSheet(
+                        onDismissRequest = { menuOpen = false },
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        tonalElevation = 20.dp
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Cover(track.artworkUrl, Modifier.size(56.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                    Text("TRACK ACTIONS", color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                                    Text(track.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
                             }
-                            context.startActivity(Intent.createChooser(send, "Share track"))
+                            Spacer(Modifier.height(8.dp))
+                            MenuSheetAction("Play next", Icons.Rounded.PlaylistPlay, "Play after the current track") { menuOpen = false; queueActions.playNext(track) }
+                            MenuSheetAction("Add to queue", Icons.Rounded.PlaylistAdd, "Keep it in Up next") { menuOpen = false; queueActions.addToQueue(track) }
+                            MenuSheetAction("Add to playlist", Icons.Rounded.QueueMusic, "Save it to a Nuvora playlist") { menuOpen = false; queueActions.addToPlaylist(track) }
+                            MenuSheetAction("Download audio + artwork", Icons.Rounded.Download, "Save available files to this device") { menuOpen = false; queueActions.download(track) }
+                            MenuSheetAction("Equalizer", Icons.Rounded.GraphicEq, "Tune bass, mids and treble") { menuOpen = false; queueActions.openEqualizer() }
+                            MenuSheetAction("Share", Icons.Rounded.Share, "Share this track") {
+                                menuOpen = false
+                                val text = if (track.permalink.startsWith("https://")) "${track.title} · ${track.artist}\n${track.permalink}" else "${track.title} · ${track.artist}"
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(Intent.createChooser(send, "Share track"))
+                            }
                         }
-                    )
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MenuSheetAction(
+    title: String,
+    icon: ImageVector,
+    subtitle: String? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            modifier = Modifier.size(42.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            if (subtitle != null) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

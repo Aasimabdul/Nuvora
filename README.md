@@ -91,3 +91,12 @@ The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtra
 - Adds a subtle animated gradient to Now Playing.
 - Downloads available artwork separately to Pictures/Nuvora/Artwork alongside eligible audio downloads in Music/Nuvora.
 - Audio-effect behavior and album art downloads depend on Android device and provider support; verify on-device.
+
+
+## v0.6.4 UI and equalizer fixes
+
+- Replaced the track More popup and Now Playing options popup with a shared, theme-aware action-sheet presentation.
+- Provider and theme selection use full-width bottom sheets rather than small popup menus.
+- Equalizer changes target both the Media3 service session and the local ExoPlayer session. The effect is re-created when the actual audio-session ID becomes available and settings are re-applied when playback reaches READY.
+- Improved hierarchy and descriptions for Play next, Queue, Playlist, Download, Equalizer, Sleep timer and Share actions.
+- CI build required before APK distribution; OEM equalizer support still needs real-device validation.

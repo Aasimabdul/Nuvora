@@ -22,6 +22,7 @@ object PlaybackBridge {
     @Volatile var onNext: (() -> Unit)? = null
     @Volatile var onPrevious: (() -> Unit)? = null
     @Volatile var applyEqualizer: ((Boolean, List<Short>) -> Unit)? = null
+    @Volatile var applyLocalEqualizer: ((Boolean, List<Short>) -> Unit)? = null
 }
 
 /** Exposes next/previous to the notification and lock screen even though each item is played on its own. */
@@ -53,6 +54,9 @@ class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var exoPlayer: ExoPlayer? = null
     private var equalizer: Equalizer? = null
+    private var equalizerSessionId: Int = 0
+    private var requestedEqualizerEnabled: Boolean = false
+    private var requestedEqualizerLevels: List<Short> = List(5) { 0.toShort() }
 
     override fun onCreate() {
         super.onCreate()
@@ -78,20 +82,16 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
         exoPlayer = player
-        equalizer = runCatching { Equalizer(0, player.audioSessionId) }.getOrNull()
-        PlaybackBridge.applyEqualizer = equalizerApply@ { enabled, requestedLevels ->
-            val effect = equalizer ?: return@equalizerApply
-            runCatching {
-                val count = effect.numberOfBands.toInt()
-                val range = effect.bandLevelRange
-                for (band in 0 until count) {
-                    val index = if (count <= 1) 0 else band * (requestedLevels.size - 1) / (count - 1)
-                    val level = requestedLevels.getOrElse(index) { 0 }.coerceIn(range[0], range[1])
-                    effect.setBandLevel(band.toShort(), level)
-                }
-                effect.enabled = enabled
-            }
+        PlaybackBridge.applyEqualizer = { enabled, requestedLevels ->
+            requestedEqualizerEnabled = enabled
+            requestedEqualizerLevels = requestedLevels.toList()
+            applyEqualizerToActiveSession()
         }
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) applyEqualizerToActiveSession()
+            }
+        })
         val builder = MediaSession.Builder(this, QueueAwarePlayer(player))
         packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
             builder.setSessionActivity(
@@ -99,6 +99,29 @@ class PlaybackService : MediaSessionService() {
             )
         }
         session = builder.build()
+    }
+
+    private fun applyEqualizerToActiveSession() {
+        val player = exoPlayer ?: return
+        val sessionId = player.audioSessionId
+        if (sessionId <= 0) return
+        if (equalizer == null || equalizerSessionId != sessionId) {
+            runCatching { equalizer?.enabled = false }
+            runCatching { equalizer?.release() }
+            equalizer = runCatching { Equalizer(0, sessionId) }.getOrNull()
+            equalizerSessionId = if (equalizer != null) sessionId else 0
+        }
+        val effect = equalizer ?: return
+        runCatching {
+            val count = effect.numberOfBands.toInt()
+            val range = effect.bandLevelRange
+            for (band in 0 until count) {
+                val index = if (count <= 1) 0 else band * (requestedEqualizerLevels.size - 1) / (count - 1)
+                val level = requestedEqualizerLevels.getOrElse(index) { 0 }.coerceIn(range[0], range[1])
+                effect.setBandLevel(band.toShort(), level)
+            }
+            effect.enabled = requestedEqualizerEnabled && count > 0
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
