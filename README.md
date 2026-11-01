@@ -100,3 +100,11 @@ The project uses [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtra
 - Equalizer changes target both the Media3 service session and the local ExoPlayer session. The effect is re-created when the actual audio-session ID becomes available and settings are re-applied when playback reaches READY.
 - Improved hierarchy and descriptions for Play next, Queue, Playlist, Download, Equalizer, Sleep timer and Share actions.
 - CI build required before APK distribution; OEM equalizer support still needs real-device validation.
+
+
+## v0.6.5 navigation and light-theme polish
+
+- System Back from any non-home screen now returns to Home instead of immediately leaving the app.
+- Added a short crossfade transition when switching main screens.
+- Removed fixed dark navy colors from the mini-player gradient, Now Playing backdrop and active track row so Light/Pearl themes use their own Material color scheme.
+- Uses theme-aware play icon contrast via `onPrimary`.

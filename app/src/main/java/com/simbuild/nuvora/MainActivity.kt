@@ -13,8 +13,10 @@ import android.os.Bundle
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -436,6 +438,8 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     var showCarouselSection by remember { mutableStateOf(prefs.getBoolean("home_carousel", true)) }
     val providers = listOf("Audius", "YouTube Music", "JioSaavn", "Spotify", "SoundCloud", "Bandcamp")
     var tab by remember { mutableIntStateOf(0) }
+    // Back from any non-home screen returns to Home instead of immediately exiting.
+    BackHandler(enabled = tab != 0) { tab = 0 }
     var query by remember { mutableStateOf("") }
     var playlistQuery by remember { mutableStateOf("") }
     var searchResultTab by remember { mutableIntStateOf(0) } // 0 = Songs, 1 = Playlists
@@ -879,7 +883,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     ) {
                         Column(
                             Modifier.background(
-                                Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f), Color(0xFF0D1528))),
+                                Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant)),
                                 RoundedCornerShape(22.dp)
                             ).padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
@@ -949,7 +953,8 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
             }
         }
     ) { insets ->
-        when (tab) {
+        Crossfade(targetState = tab, animationSpec = tween(durationMillis = 220), label = "screen-fade") { screen ->
+        when (screen) {
             0 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Row(
                     Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 18.dp, bottom = 4.dp),
@@ -1607,7 +1612,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 Column(
                     Modifier.fillMaxSize().padding(insets)
                         .background(Brush.linearGradient(
-                            colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), Color(0xFF111A31), MaterialTheme.colorScheme.secondary.copy(alpha = 0.09f), MaterialTheme.colorScheme.background),
+                            colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.primary.copy(alpha = 0.10f), MaterialTheme.colorScheme.background),
                             start = Offset(ambientShift * 460f, ambientShift * 160f),
                             end = Offset(900f - ambientShift * 260f, 1700f)
                         ))
@@ -1647,7 +1652,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     Brush.verticalGradient(listOf(Color.Transparent, Color(0x66070B16)))
                                 )
                             )
-                            Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White.copy(alpha = 0.82f), modifier = Modifier.size(54.dp))
+                            Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
                         }
                     }
                     Spacer(Modifier.height(22.dp))
@@ -1707,7 +1712,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary,
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f)), shadowElevation = 16.dp,
                                 modifier = Modifier.size(70.dp).clickable { if (player.isPlaying) player.pause() else player.play() }) {
-                                Box(contentAlignment = Alignment.Center) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause", tint = Color.White, modifier = Modifier.size(40.dp)) }
+                                Box(contentAlignment = Alignment.Center) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(40.dp)) }
                             }
                             IconButton(onClick = { skipNext() }) { Icon(Icons.Rounded.SkipNext, contentDescription = "Next track", modifier = Modifier.size(30.dp)) }
                             IconButton(onClick = {
@@ -1762,6 +1767,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 Text("Choose a track to start listening.")
                 Button(onClick = { tab = 0 }) { Text("Discover music") }
             }
+        }
         }
     }
     }
@@ -2139,7 +2145,7 @@ private fun TrackRow(
 ) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .background(if (isActive) Color(0xFF1A2E4F) else MaterialTheme.colorScheme.surface)
+            .background(if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
             .clickable(onClick = onPlay).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
