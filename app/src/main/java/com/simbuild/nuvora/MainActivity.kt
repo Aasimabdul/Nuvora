@@ -50,6 +50,7 @@ import coil.compose.AsyncImage
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 private val Night = Color(0xFF080D1A)
 private val Panel: Color
@@ -212,6 +213,10 @@ private fun NuvoraApp(player: Player, themeIndex: Int, onThemeChange: (Int) -> U
     val queue = remember { mutableListOf<MusicTrack>() }
     var shuffleOn by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+    var showQueue by remember { mutableStateOf(false) }
+    var showSleepTimer by remember { mutableStateOf(false) }
+    var sleepTimerJob by remember { mutableStateOf<Job?>(null) }
+    var playbackSpeed by remember { mutableFloatStateOf(1f) }
     fun markActive(track: MusicTrack) {
         active = track
         recentlyPlayed.removeAll { it.id == track.id }
@@ -744,6 +749,27 @@ private fun NuvoraApp(player: Player, themeIndex: Int, onThemeChange: (Int) -> U
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showQueue = true }) {
+                            Icon(Icons.Rounded.QueueMusic, contentDescription = "Open Up next queue", tint = Cyan)
+                            Text("  Up next (${queue.size})")
+                        }
+                        TextButton(onClick = { showSleepTimer = true }) {
+                            Icon(Icons.Rounded.Bedtime, contentDescription = "Sleep timer", tint = Cyan)
+                            Text("  Sleep timer")
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Speed", color = Muted, fontSize = 12.sp)
+                        listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
+                            FilterChip(
+                                selected = playbackSpeed == speed,
+                                onClick = { playbackSpeed = speed; player.setPlaybackSpeed(speed) },
+                                label = { Text("${speed}x", fontSize = 11.sp) },
+                                modifier = Modifier.padding(start = 3.dp)
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { toggleFavorite(track) }) {
                             Icon(if (track.id in favorites) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = null, tint = Cyan, modifier = Modifier.size(20.dp))
                             Text(if (track.id in favorites) "  Saved" else "  Save")
@@ -760,6 +786,90 @@ private fun NuvoraApp(player: Player, themeIndex: Int, onThemeChange: (Int) -> U
                 Button(onClick = { tab = 0 }) { Text("Discover music") }
             }
         }
+    }
+
+    if (showQueue) {
+        ModalBottomSheet(onDismissRequest = { showQueue = false }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+                Text("Up next", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Tap a track to play it. Use arrows to reorder.", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
+                if (queue.isEmpty()) {
+                    Text("Your queue is empty.", color = Muted, modifier = Modifier.padding(vertical = 18.dp))
+                } else {
+                    LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                        items(queue.toList(), key = { it.id }) { queuedTrack ->
+                            val index = queue.indexOfFirst { it.id == queuedTrack.id }
+                            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Cover(queuedTrack.artworkUrl, Modifier.size(42.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp).clickable {
+                                    if (index >= 0) { player.seekTo(index, 0L); player.play(); markActive(queuedTrack) }
+                                    showQueue = false
+                                }) {
+                                    Text(queuedTrack.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                                    Text(queuedTrack.artist, color = Muted, maxLines = 1, fontSize = 11.sp)
+                                }
+                                IconButton(onClick = {
+                                    if (index > 0) {
+                                        val item = queue.removeAt(index)
+                                        queue.add(index - 1, item)
+                                        player.moveMediaItem(index, index - 1)
+                                    }
+                                }, enabled = index > 0) { Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move up") }
+                                IconButton(onClick = {
+                                    if (index < queue.lastIndex) {
+                                        val item = queue.removeAt(index)
+                                        queue.add(index + 1, item)
+                                        player.moveMediaItem(index, index + 1)
+                                    }
+                                }, enabled = index in 0 until queue.lastIndex) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move down") }
+                                IconButton(onClick = {
+                                    if (index >= 0) {
+                                        queue.removeAt(index)
+                                        player.removeMediaItem(index)
+                                        if (queue.isEmpty()) showQueue = false
+                                    }
+                                }) { Icon(Icons.Rounded.Close, contentDescription = "Remove from queue") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSleepTimer) {
+        AlertDialog(
+            onDismissRequest = { showSleepTimer = false },
+            title = { Text("Sleep timer") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Pause playback after:", color = Muted)
+                    listOf(15, 30, 45, 60).forEach { minutes ->
+                        OutlinedButton(
+                            onClick = {
+                                sleepTimerJob?.cancel()
+                                sleepTimerJob = scope.launch {
+                                    kotlinx.coroutines.delay(minutes * 60_000L)
+                                    player.pause()
+                                    Toast.makeText(context, "Sleep timer finished", Toast.LENGTH_SHORT).show()
+                                }
+                                showSleepTimer = false
+                                Toast.makeText(context, "Sleep timer set for $minutes minutes", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("$minutes minutes") }
+                    }
+                    TextButton(onClick = {
+                        sleepTimerJob?.cancel()
+                        sleepTimerJob = null
+                        showSleepTimer = false
+                        Toast.makeText(context, "Sleep timer cancelled", Toast.LENGTH_SHORT).show()
+                    }) { Text("Cancel timer") }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSleepTimer = false }) { Text("Close") } }
+        )
     }
 }
 
