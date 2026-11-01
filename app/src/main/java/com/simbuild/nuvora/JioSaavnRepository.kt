@@ -29,8 +29,7 @@ object JioSaavnRepository {
                     ?: item.optString("name").takeIf { it.isNotBlank() && it != "null" } ?: "Untitled playlist"
                 val subtitle = item.optString("subtitle").takeIf { it.isNotBlank() && it != "null" }
                     ?: item.optString("description").takeIf { it.isNotBlank() && it != "null" } ?: "JioSaavn playlist"
-                val artwork = firstUrl(item.optJSONArray("image"))
-                    ?: item.optString("image").takeIf { it.startsWith("https://") }
+                val artwork = firstArtworkUrl(item)
                 val url = item.optString("url").takeIf { it.startsWith("https://") } ?: "https://www.jiosaavn.com"
                 add(JioSaavnPlaylist(id, title, subtitle, artwork, url))
             }
@@ -65,7 +64,7 @@ object JioSaavnRepository {
                     id = "jiosaavn-$id",
                     title = title,
                     artist = artist.ifBlank { "Unknown artist" },
-                    artworkUrl = firstUrl(item.optJSONArray("image")) ?: item.optString("image").takeIf { it.startsWith("https://") },
+                    artworkUrl = firstArtworkUrl(item),
                     durationSeconds = item.optInt("duration", 0),
                     permalink = item.optString("url").takeIf { it.startsWith("https://") } ?: "https://www.jiosaavn.com",
                     streamUrl = stream
@@ -100,8 +99,7 @@ object JioSaavnRepository {
                         item.optString("primaryArtists").takeIf { it.isNotBlank() && it != "null" }
                             ?: item.optString("artist", "Unknown artist")
                     }
-                    val artwork = firstUrl(item.optJSONArray("image"))
-                        ?: item.optString("image").takeIf { it.startsWith("https://") }
+                    val artwork = firstArtworkUrl(item)
                     val downloads = item.optJSONArray("downloadUrl")
                         ?: item.optJSONArray("download_url")
                     val stream = if (downloads != null) {
@@ -132,12 +130,28 @@ object JioSaavnRepository {
             }
         }
 
+    private fun firstArtworkUrl(item: JSONObject): String? {
+        val source = item.opt("image").takeUnless { it == JSONObject.NULL }
+            ?: item.opt("artwork").takeUnless { it == JSONObject.NULL }
+        return when (source) {
+            is org.json.JSONArray -> firstUrl(source)
+            is JSONObject -> normalizeArtworkUrl(
+                source.optString("url").takeIf { it != "null" && it.isNotBlank() }
+                    ?: source.optString("link").takeIf { it != "null" && it.isNotBlank() }
+            )
+            is String -> normalizeArtworkUrl(source)
+            else -> null
+        }
+    }
+
     private fun firstUrl(items: org.json.JSONArray?): String? {
         if (items == null) return null
         for (i in items.length() - 1 downTo 0) {
             val item = items.optJSONObject(i) ?: continue
-            val url = item.optString("url").takeIf { it.startsWith("https://") }
-                ?: item.optString("link").takeIf { it.startsWith("https://") }
+            val url = normalizeArtworkUrl(
+                item.optString("url").takeIf { it != "null" && it.isNotBlank() }
+                    ?: item.optString("link").takeIf { it != "null" && it.isNotBlank() }
+            )
             if (url != null) return url
         }
         return null
