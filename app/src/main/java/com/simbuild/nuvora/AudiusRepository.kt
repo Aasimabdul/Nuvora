@@ -41,8 +41,8 @@ object AudiusRepository {
                     val id = item.optString("id").takeIf { it.isNotBlank() && it != "null" } ?: continue
                     val user = item.optJSONObject("user")
                     val artwork = item.optJSONObject("artwork")
-                    val artworkUrl = artwork?.optString("150x150")?.takeIf { it.startsWith("https://") }
-                        ?: artwork?.optString("480x480")?.takeIf { it.startsWith("https://") }
+                    val artworkUrl = normalizeArtworkUrl(artwork?.optString("480x480"))
+                        ?: normalizeArtworkUrl(artwork?.optString("150x150"))
                     val duration = item.optInt("duration", 0)
                     val permalink = item.optString("permalink").takeIf { it.startsWith("https://") }
                         ?: "https://audius.co"
