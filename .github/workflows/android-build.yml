@@ -68,6 +68,6 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.5.5' }}
           target_commitish: main
           name: Nuvora ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.5.5' }}
-          body: "Nuvora v0.5.5 adds an Audius trending feed with infinite scroll, pull-to-refresh on Home, loading skeletons and rotation-safe state. Debug APK for testing; verify provider and audio-effect behavior on a real Android device."
+          body: "Nuvora v0.5.5 refreshes the Home header, adds provider artwork to source selection, and enlarges the floating mini-player. Debug APK for testing; verify provider playback on a real Android device."
           files: Nuvora-debug.apk
           generate_release_notes: true
