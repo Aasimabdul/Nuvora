@@ -32,7 +32,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -203,6 +209,8 @@ private fun decodePlayCounts(raw: String?): Map<String, Int> {
         }
     }.getOrDefault(emptyMap())
 }
+
+private const val DISCOVERY_TERM = "electronic chill"
 
 private fun formatTime(milliseconds: Long): String {
     val seconds = (milliseconds.coerceAtLeast(0L) / 1000L).toInt()
@@ -511,6 +519,9 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     var sleepTimerMinutes by remember { mutableIntStateOf(0) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
+    var audiusFeedTerm by remember { mutableStateOf(DISCOVERY_TERM) }
+    var canLoadMore by remember { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
     var speed by remember { mutableFloatStateOf(1f) }
     var active by remember { mutableStateOf<MusicTrack?>(null) }
     var playing by remember { mutableStateOf(false) }
@@ -646,7 +657,12 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         error = null
         scope.launch {
             try {
-                tracks = if (selectedProvider == "JioSaavn") JioSaavnRepository.searchTracks(term) else AudiusRepository.searchTracks(term, baseUrl = sourceUrl.trim().trimEnd('/'))
+                val base = sourceUrl.trim().trimEnd('/')
+                tracks = if (selectedProvider == "JioSaavn") JioSaavnRepository.searchTracks(term)
+                else if (term.isBlank() || term == DISCOVERY_TERM) AudiusRepository.trendingTracks(baseUrl = base)
+                else AudiusRepository.searchTracks(term, baseUrl = base)
+                audiusFeedTerm = term
+                canLoadMore = selectedProvider == "Audius" && tracks.size >= 25
                 queueTracks = tracks
                 tracks.forEach(::rememberTrack)
                 if (tracks.isEmpty()) error = "No playable tracks found. Try another search."
@@ -654,6 +670,32 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 error = "Could not load music. Check your internet and try again."
             } finally {
                 loading = false
+            }
+        }
+    }
+
+    fun loadMore() {
+        if (selectedProvider != "Audius" || loadingMore || loading || !canLoadMore || tracks.isEmpty()) return
+        loadingMore = true
+        val term = audiusFeedTerm
+        val before = tracks
+        scope.launch {
+            try {
+                val base = sourceUrl.trim().trimEnd('/')
+                val page = if (term.isBlank() || term == DISCOVERY_TERM) AudiusRepository.trendingTracks(baseUrl = base, offset = before.size)
+                else AudiusRepository.searchTracks(term, baseUrl = base, offset = before.size)
+                if (audiusFeedTerm != term || tracks !== before) return@launch
+                val known = before.map { it.id }.toSet()
+                val fresh = page.filter { it.id !in known }
+                fresh.forEach(::rememberTrack)
+                val merged = before + fresh
+                if (queueTracks == before) queueTracks = merged
+                tracks = merged
+                canLoadMore = page.size >= 25 && fresh.isNotEmpty()
+            } catch (_: Exception) {
+                canLoadMore = false
+            } finally {
+                loadingMore = false
             }
         }
     }
@@ -992,7 +1034,12 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     placeholder = if (selectedProvider == "YouTube Music") "Search YouTube Music songs or artists…" else "Songs, artists, moods…"
                 )
                 StatusMessages(loading, error)
-                LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PullToRefreshBox(
+                    isRefreshing = loading,
+                    onRefresh = { search(query.ifBlank { if (selectedProvider == "YouTube Music") "popular music" else DISCOVERY_TERM }) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (showMoodSection) item {
                         Text("Pick your mood", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1076,6 +1123,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         }
                     }
                     item { Text("Trending tracks", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)) }
+                    if (loading && tracks.isEmpty() && youtubeResults.isEmpty()) item(key = "skeleton-home") { SkeletonRows() }
                     if (selectedProvider == "YouTube Music") {
                         items(youtubeResults, key = { "trending-youtube-${it.videoId}" }) { result ->
                             val track = result.toMusicTrack()
@@ -1088,6 +1136,12 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 { toggleFavorite(track) }, track.id in favorites, { downloadTrack(context, track) },
                                 { toggleTrackSelection(track) }, track.id in selectedTrackIds)
                         }
+                        if (selectedProvider == "Audius" && canLoadMore && tracks.isNotEmpty()) item(key = "load-more-home") {
+                            LaunchedEffect(tracks.size) { loadMore() }
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            }
+                        }
                     }
                     item {
                         Text(
@@ -1099,6 +1153,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)
                         )
                     }
+                }
                 }
             }
             1 -> Column(Modifier.fillMaxSize().padding(insets)) {
@@ -1122,10 +1177,17 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             }
                         }
                     } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (loading && tracks.isEmpty()) item(key = "skeleton-search") { SkeletonRows() }
                         items(tracks, key = { it.id }) { track ->
                             TrackRow(track, active?.id == track.id, { queueTracks = tracks; play(track) },
                                 { toggleFavorite(track) }, track.id in favorites, { downloadTrack(context, track) },
                                 { toggleTrackSelection(track) }, track.id in selectedTrackIds)
+                        }
+                        if (selectedProvider == "Audius" && canLoadMore && tracks.isNotEmpty()) item(key = "load-more-search") {
+                            LaunchedEffect(tracks.size) { loadMore() }
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            }
                         }
                     }
                 } else {
@@ -2301,4 +2363,31 @@ private fun EqualizerDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
     )
+}
+
+@Composable
+private fun SkeletonRows(count: Int = 6) {
+    val transition = rememberInfiniteTransition(label = "skeleton")
+    val pulse by transition.animateFloat(
+        initialValue = 0.10f,
+        targetValue = 0.24f,
+        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
+        label = "skeleton-alpha"
+    )
+    val block = MaterialTheme.colorScheme.onSurface.copy(alpha = pulse)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(count) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface).padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(block))
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.fillMaxWidth(0.62f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(block))
+                    Box(Modifier.fillMaxWidth(0.36f).height(10.dp).clip(RoundedCornerShape(6.dp)).background(block))
+                }
+            }
+        }
+    }
 }

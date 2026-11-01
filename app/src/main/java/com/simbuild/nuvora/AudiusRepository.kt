@@ -28,38 +28,50 @@ object AudiusRepository {
     private const val BASE_URL = "https://api.audius.co/v1"
     private const val APP_NAME = "Nuvora"
 
-    suspend fun searchTracks(query: String, limit: Int = 25, baseUrl: String = BASE_URL): List<MusicTrack> =
+    suspend fun searchTracks(query: String, limit: Int = 25, baseUrl: String = BASE_URL, offset: Int = 0): List<MusicTrack> =
         withContext(Dispatchers.IO) {
             val encoded = URLEncoder.encode(query.ifBlank { "electronic chill" }, "UTF-8")
             val normalizedBase = baseUrl.trim().trimEnd('/')
-            val url = "$normalizedBase/tracks/search?query=$encoded&limit=$limit&app_name=$APP_NAME"
-            val json = getJson(url)
-            val data = json.optJSONArray("data") ?: return@withContext emptyList()
-            buildList {
-                for (i in 0 until data.length()) {
-                    val item = data.optJSONObject(i) ?: continue
-                    val id = item.optString("id").takeIf { it.isNotBlank() && it != "null" } ?: continue
-                    val user = item.optJSONObject("user")
-                    val artwork = item.optJSONObject("artwork")
-                    val artworkUrl = normalizeArtworkUrl(artwork?.optString("480x480"))
-                        ?: normalizeArtworkUrl(artwork?.optString("150x150"))
-                    val duration = item.optInt("duration", 0)
-                    val permalink = item.optString("permalink").takeIf { it.startsWith("https://") }
-                        ?: "https://audius.co"
-                    add(
-                        MusicTrack(
-                            id = id,
-                            title = item.optString("title", "Untitled track"),
-                            artist = user?.optString("name")?.takeIf { it.isNotBlank() && it != "null" } ?: "Unknown artist",
-                            artworkUrl = artworkUrl,
-                            durationSeconds = duration,
-                            permalink = permalink,
-                            streamUrl = "$normalizedBase/tracks/$id/stream?app_name=$APP_NAME"
-                        )
+            val url = "$normalizedBase/tracks/search?query=$encoded&limit=$limit&offset=$offset&app_name=$APP_NAME"
+            parseTracks(getJson(url), normalizedBase)
+        }
+
+    /** Official Audius trending endpoint (weekly), optionally narrowed to a genre such as "Electronic". */
+    suspend fun trendingTracks(limit: Int = 25, baseUrl: String = BASE_URL, offset: Int = 0, genre: String? = null): List<MusicTrack> =
+        withContext(Dispatchers.IO) {
+            val normalizedBase = baseUrl.trim().trimEnd('/')
+            val genreParam = genre?.takeIf { it.isNotBlank() }?.let { "&genre=" + URLEncoder.encode(it, "UTF-8") }.orEmpty()
+            val url = "$normalizedBase/tracks/trending?limit=$limit&offset=$offset&time=week$genreParam&app_name=$APP_NAME"
+            parseTracks(getJson(url), normalizedBase)
+        }
+
+    private fun parseTracks(json: JSONObject, normalizedBase: String): List<MusicTrack> {
+        val data = json.optJSONArray("data") ?: return emptyList()
+        return buildList {
+            for (i in 0 until data.length()) {
+                val item = data.optJSONObject(i) ?: continue
+                val id = item.optString("id").takeIf { it.isNotBlank() && it != "null" } ?: continue
+                val user = item.optJSONObject("user")
+                val artwork = item.optJSONObject("artwork")
+                val artworkUrl = normalizeArtworkUrl(artwork?.optString("480x480"))
+                    ?: normalizeArtworkUrl(artwork?.optString("150x150"))
+                val duration = item.optInt("duration", 0)
+                val permalink = item.optString("permalink").takeIf { it.startsWith("https://") }
+                    ?: "https://audius.co"
+                add(
+                    MusicTrack(
+                        id = id,
+                        title = item.optString("title", "Untitled track"),
+                        artist = user?.optString("name")?.takeIf { it.isNotBlank() && it != "null" } ?: "Unknown artist",
+                        artworkUrl = artworkUrl,
+                        durationSeconds = duration,
+                        permalink = permalink,
+                        streamUrl = "$normalizedBase/tracks/$id/stream?app_name=$APP_NAME"
                     )
-                }
+                )
             }
         }
+    }
 
     private fun getJson(address: String): JSONObject {
         val connection = (URL(address).openConnection() as HttpURLConnection).apply {
