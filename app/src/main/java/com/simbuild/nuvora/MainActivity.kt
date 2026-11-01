@@ -2125,6 +2125,7 @@ internal fun Cover(url: String?, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TrackRow(
     track: MusicTrack,
