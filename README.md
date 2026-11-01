@@ -1,7 +1,58 @@
 # Nuvora
 
-Nuvora is an Android music discovery and streaming app built with Kotlin, Jetpack Compose, and AndroidX Media3.
+**Nuvora** is a lightweight Android music discovery and streaming app built with Kotlin, Jetpack Compose, and AndroidX Media3. It brings supported music sources, search, playlists, and playback controls into one dark, cyan-accented interface.
 
+> **Release status:** the latest manually tested APK in this repository workflow is a debug build (`0.5.8-debug`). It is not yet the signed production `v1.0.0` release. A release build must be configured and signed with a dedicated release key before it is distributed as stable.
+
+## Highlights
+
+- Dark navy interface with cyan-blue accents, provider selector, floating mini-player, and Now Playing screen.
+- Search and source discovery across supported providers.
+- Media3 playback controls, queue navigation, seek/progress, shuffle/repeat, sleep timer, and background media notification.
+- Local favourites, recently played tracks, play counts, and manually managed playlists.
+- Best-effort public playlist search/import where supported.
+- Direct-file downloads only when a source supplies a downloadable audio URL; protected/provider watch pages are not treated as audio files.
+- Android 8.0 (API 26) or newer; built with Java 17 and Gradle.
+
+## Supported sources and limitations
+
+| Source | Search | In-app playback | Notes |
+| --- | --- | --- | --- |
+| YouTube Music | Yes; public playlist search is best-effort | Best-effort | Uses NewPipe Extractor and undocumented service behaviour, not an official YouTube Music API. Availability can change. |
+| Audius | Yes | Eligible public tracks | Depends on the public API and creator-provided availability. |
+| JioSaavn | Yes | Best-effort where a stream URL is returned | Uses a community endpoint, not an official developer streaming API. |
+| Spotify | External handoff | No general-purpose in-app streaming | Opened externally; general audio streams are not exposed for custom playback. |
+| SoundCloud | External handoff | Not enabled as general in-app streaming | Requires supported/approved integration. |
+| Bandcamp | External handoff/search | No general-purpose in-app streaming | Playback remains with the service. |
+
+Nuvora does not intentionally bypass DRM, sign-in, age gates, regional restrictions, or other access controls. Playback may fail for specific tracks because of provider changes, rights, region, or availability. Use each service in accordance with its terms and applicable rights.
+
+## Build from source
+
+Requirements: JDK 17 and Gradle 8.13 (the GitHub Actions workflow installs Gradle).
+
+```bash
+gradle --no-daemon assembleDebug
+```
+
+Debug APK output: `app/build/outputs/apk/debug/app-debug.apk`.
+
+A successful CI compile verifies build integration, not playback on every device or every track. Test on a real Android device before distributing a build. Do not describe the debug APK as a production release.
+
+## Release and F-Droid
+
+- GitHub releases should contain a verified, installable APK with clear versioning and release notes.
+- Production APKs must be signed with a dedicated release key; do not use a CI debug key as the production signing identity.
+- F-Droid submission requires source metadata and a licensing/dependency/packaging review. Submission is reviewed by F-Droid; acceptance is not automatic.
+- Current repository licence: GNU GPL-3.0. Confirm that all bundled assets and dependencies are compatible before submission.
+
+## Current tested build
+
+- Version: `0.5.8-debug` (test build, not a stable release).
+- Manual test report supplied on 2026-11-01: installation/startup, UI, playback, playlists/download handling, and stability checks all passed on one test device.
+- This manual report is not a substitute for automated tests or testing across Android versions/devices.
+
+---
 ## Playback and search
 
 - **YouTube Music is the default source.** The Home search bar searches YouTube Music; result rows have a Play action to start in-app audio playback through Media3.
