@@ -348,17 +348,6 @@ class MainActivity : ComponentActivity() {
                 if (playbackState == Player.STATE_READY) applyLocalEqualizer(localEqEnabled, localEqLevels)
             }
         })
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
-        val future = MediaController.Builder(this, token).buildAsync()
-        controllerFuture = future
-        future.addListener({
-            servicePlayer = try { future.get() } catch (_: Exception) { null }
-        }, ContextCompat.getMainExecutor(this))
         setContent {
             val prefs = getSharedPreferences("nuvora_settings", MODE_PRIVATE)
             var themeIndex by remember { mutableIntStateOf(prefs.getInt("theme_index", 0).coerceIn(themes.indices)) }
@@ -378,6 +367,29 @@ class MainActivity : ComponentActivity() {
             }
             MaterialTheme(colorScheme = colorScheme) {
                 NuvoraApp(player, servicePlayer, themeIndex, { themeIndex = it; prefs.edit().putInt("theme_index", it).apply() }, sharedYouTubeLink)
+            }
+        }
+        // Defer optional permission/session startup until the first UI view has been attached.
+        // A MediaSession connection failure must not prevent the local player UI from opening.
+        window.decorView.post {
+            if (!isFinishing && !isDestroyed) {
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    runCatching { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                }
+                runCatching {
+                    val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+                    val future = MediaController.Builder(this, token).buildAsync()
+                    controllerFuture = future
+                    future.addListener({
+                        if (!isFinishing && !isDestroyed) {
+                            servicePlayer = runCatching { future.get() }.getOrNull()
+                        }
+                    }, ContextCompat.getMainExecutor(this))
+                }.onFailure {
+                    android.util.Log.w("Nuvora", "MediaSession unavailable; continuing with local playback", it)
+                }
             }
         }
     }
@@ -419,9 +431,9 @@ class MainActivity : ComponentActivity() {
         runCatching { localEqualizer?.release() }
         localEqualizer = null
         localEqualizerSessionId = 0
-        controllerFuture?.let { MediaController.releaseFuture(it) }
+        runCatching { controllerFuture?.let { MediaController.releaseFuture(it) } }
         controllerFuture = null
-        player.release()
+        if (::player.isInitialized) runCatching { player.release() }
         super.onDestroy()
     }
 }
