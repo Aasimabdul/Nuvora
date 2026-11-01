@@ -65,11 +65,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
-private val Night = Color(0xFF080D1A)
-private val Panel = Color(0xFF121B2E)
-private val Blue = Color(0xFF4D8DFF)
-private val Cyan = Color(0xFF5CE1E6)
-private val Muted = Color(0xFF9AA8C2)
 
 private data class NuvoraTheme(
     val label: String,
@@ -83,16 +78,16 @@ private data class NuvoraTheme(
 
 /** Existing themes are kept first so saved theme indices remain compatible. */
 private val themes = listOf(
-    NuvoraTheme("Neon Blue", Color(0xFF080D1A), Color(0xFF121B2E), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
+    NuvoraTheme("Neon MaterialTheme.colorScheme.primary", Color(0xFF080D1A), Color(0xFF121B2E), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
     NuvoraTheme("AMOLED Black", Color(0xFF000000), Color(0xFF101010), Color(0xFF4D8DFF), Color(0xFF5CE1E6)),
-    NuvoraTheme("Purple Night", Color(0xFF10091D), Color(0xFF21152F), Color(0xFFB18CFF), Color(0xFFE0B8FF)),
+    NuvoraTheme("Purple MaterialTheme.colorScheme.background", Color(0xFF10091D), Color(0xFF21152F), Color(0xFFB18CFF), Color(0xFFE0B8FF)),
     NuvoraTheme("Forest", Color(0xFF071510), Color(0xFF10251D), Color(0xFF48C78E), Color(0xFF9DE8C0)),
     NuvoraTheme("Light", Color(0xFFF4F7FC), Color(0xFFFFFFFF), Color(0xFF245DCE), Color(0xFF007F91), isLight = true),
     NuvoraTheme("Midnight Navy", Color(0xFF07111F), Color(0xFF12233A), Color(0xFF4F9BFF), Color(0xFF86D7FF)),
-    NuvoraTheme("Pixel Blue", Color(0xFF0B1424), Color(0xFF18283E), Color(0xFF8AB4F8), Color(0xFFD3E3FD)),
+    NuvoraTheme("Pixel MaterialTheme.colorScheme.primary", Color(0xFF0B1424), Color(0xFF18283E), Color(0xFF8AB4F8), Color(0xFFD3E3FD)),
     NuvoraTheme("Liquid Glass", Color(0xFF091322), Color(0xB8203048), Color(0xFF72B7FF), Color(0xFF9BE7F5)),
-    NuvoraTheme("Neo Blue", Color(0xFF111B2C), Color(0xFF17243A), Color(0xFF65A7FF), Color(0xFF8BC8FF)),
-    NuvoraTheme("Arctic Cyan", Color(0xFF07171D), Color(0xFF112A33), Color(0xFF4DE1E6), Color(0xFFB2FAF4)),
+    NuvoraTheme("Neo MaterialTheme.colorScheme.primary", Color(0xFF111B2C), Color(0xFF17243A), Color(0xFF65A7FF), Color(0xFF8BC8FF)),
+    NuvoraTheme("Arctic MaterialTheme.colorScheme.secondary", Color(0xFF07171D), Color(0xFF112A33), Color(0xFF4DE1E6), Color(0xFFB2FAF4)),
     NuvoraTheme("Aurora", Color(0xFF100F25), Color(0xFF211D40), Color(0xFF9D91FF), Color(0xFF68D8F2)),
     NuvoraTheme("Sunset Coral", Color(0xFF21121A), Color(0xFF35202A), Color(0xFFFF8A80), Color(0xFFFFC2A1)),
     NuvoraTheme("Pearl Light", Color(0xFFF5F4F8), Color(0xFFFFFFFF), Color(0xFF6555A5), Color(0xFFB44C73), isLight = true),
@@ -737,15 +732,15 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 if (tab != 4) active?.let { track ->
                     Surface(
                         shape = RoundedCornerShape(22.dp),
-                        color = Panel.copy(alpha = 0.94f),
-                        border = BorderStroke(1.dp, Cyan.copy(alpha = 0.18f)),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)),
                         tonalElevation = 4.dp,
                         shadowElevation = 14.dp,
                         modifier = Modifier.fillMaxWidth().clickable { tab = 4 }
                     ) {
                         Column(
                             Modifier.background(
-                                Brush.verticalGradient(listOf(Panel.copy(alpha = 0.98f), Color(0xFF0D1528))),
+                                Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f), Color(0xFF0D1528))),
                                 RoundedCornerShape(22.dp)
                             ).padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
@@ -753,7 +748,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 Cover(track.artworkUrl, Modifier.size(42.dp))
                                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                     Text(track.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) {
                                     Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = "Play or pause")
@@ -768,11 +763,11 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     onValueChange = { positionMs = (it * durationMs).toLong() },
                                     onValueChangeFinished = { player.seekTo(positionMs) },
                                     modifier = Modifier.fillMaxWidth().height(18.dp),
-                                    thumb = { SliderDefaults.Thumb(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, colors = SliderDefaults.colors(thumbColor = Cyan)) },
+                                    thumb = { SliderDefaults.Thumb(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.secondary)) },
                                     colors = SliderDefaults.colors(
-                                        thumbColor = Cyan,
-                                        activeTrackColor = Cyan,
-                                        inactiveTrackColor = Muted.copy(alpha = 0.25f)
+                                        thumbColor = MaterialTheme.colorScheme.secondary,
+                                        activeTrackColor = MaterialTheme.colorScheme.secondary,
+                                        inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
                                     )
                                 )
                             }
@@ -822,7 +817,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("NUVORA", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Text("NUVORA", color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                         Text("Find your frequency.", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(
@@ -843,7 +838,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         in 17..21 -> "Good evening. Find your frequency."
                         else -> "Welcome back. Find your frequency."
                     },
-                    color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, bottom = 6.dp)
                 )
                 SearchBar(
                     query,
@@ -858,7 +853,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         Text("Pick your mood", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(listOf("Chill", "Electronic", "Focus", "Energy", "Ambient", "Workout")) { mood ->
-                                Surface(shape = RoundedCornerShape(18.dp), color = Panel, modifier = Modifier.clickable {
+                                Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.clickable {
                                     query = mood.lowercase()
                                     search(query)
                                 }) {
@@ -872,7 +867,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                                 "Ambient" -> Icons.Rounded.Cloud
                                                 else -> Icons.Rounded.FitnessCenter
                                             },
-                                            contentDescription = null, tint = Cyan, modifier = Modifier.size(18.dp)
+                                            contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(Modifier.width(7.dp))
                                         Text(mood, fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -889,7 +884,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     Column(Modifier.width(112.dp).clickable { play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Cover(track.artworkUrl, Modifier.size(112.dp))
                                         Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -905,7 +900,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     Column(Modifier.width(112.dp).clickable { queueTracks = mostPlayed; play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Cover(track.artworkUrl, Modifier.size(112.dp))
                                         Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -920,7 +915,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     Column(Modifier.width(124.dp).clickable { queueTracks = youtubeResults.map { it.toMusicTrack() }; playYouTubeResult(result) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Cover(result.artworkUrl, Modifier.size(124.dp))
                                         Text(result.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(result.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(result.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -930,7 +925,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     Column(Modifier.width(124.dp).clickable { queueTracks = tracks; play(track) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Cover(track.artworkUrl, Modifier.size(124.dp))
                                         Text(track.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(track.artist, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -957,7 +952,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 "JioSaavn" -> "JioSaavn catalogue · Community API and stream availability can change."
                                 else -> "Catalogue by Audius · Track availability depends on creator settings."
                             },
-                            color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp)
                         )
                     }
                 }
@@ -1002,7 +997,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text("Your library", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                        Text("Playlists, likes and listening history", color = Muted, fontSize = 12.sp)
+                        Text("Playlists, likes and listening history", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     Button(onClick = { showCreatePlaylist = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
                         Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -1012,14 +1007,14 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 }
                 if (selectedTrackIds.isNotEmpty()) {
                     Surface(
-                        color = Blue.copy(alpha = 0.12f),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Blue.copy(alpha = 0.3f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 2.dp)
                     ) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Cyan)
-                            Text("${selectedTrackIds.size} tracks selected", modifier = Modifier.weight(1f), color = Cyan)
+                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                            Text("${selectedTrackIds.size} tracks selected", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.secondary)
                             TextButton(onClick = { selectedTrackIds.clear() }) { Text("Clear") }
                         }
                     }
@@ -1036,7 +1031,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         Text("Liked songs", fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 4.dp))
                     }
                     if (saved.isEmpty()) {
-                        item { Text("Use the heart on any result to keep it here.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) }
+                        item { Text("Use the heart on any result to keep it here.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) }
                     } else {
                         items(saved, key = { "liked-${it.id}" }) { track ->
                             TrackRow(
@@ -1061,28 +1056,28 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     item {
                         Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("My playlists", fontSize = 19.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text("${localPlaylists.size}", color = Muted, fontSize = 12.sp)
+                            Text("${localPlaylists.size}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
                     }
                     if (localPlaylists.isEmpty()) {
                         item {
                             Text(
                                 "Create a playlist, then select tracks in Search with the playlist icon. You can make playlists from YouTube Music, Audius and JioSaavn results.",
-                                color = Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)
                             )
                         }
                     }
                     items(localPlaylists, key = { "playlist-${it.id}" }) { playlist ->
                         val playlistTracks = playlist.trackIds.mapNotNull { id -> knownTracks.firstOrNull { it.id == id } }
                         Column(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)
-                                .border(BorderStroke(1.dp, Blue.copy(alpha = 0.13f)), RoundedCornerShape(18.dp))
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surface)
+                                .border(BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)), RoundedCornerShape(18.dp))
                                 .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(shape = RoundedCornerShape(13.dp), color = Blue.copy(alpha = 0.16f), modifier = Modifier.size(44.dp)) {
+                                Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), modifier = Modifier.size(44.dp)) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Rounded.QueueMusic, contentDescription = null, tint = Cyan, modifier = Modifier.size(23.dp))
+                                        Icon(Icons.Rounded.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(23.dp))
                                     }
                                 }
                                 Column(
@@ -1091,7 +1086,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     }.padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(playlist.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${playlistTracks.size} tracks", color = Muted, fontSize = 12.sp)
+                                    Text("${playlistTracks.size} tracks", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                                 }
                                 IconButton(onClick = {
                                     expandedPlaylistId = if (expandedPlaylistId == playlist.id) null else playlist.id
@@ -1099,17 +1094,17 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                     Icon(
                                         if (expandedPlaylistId == playlist.id) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                                         contentDescription = "Expand playlist",
-                                        tint = Cyan
+                                        tint = MaterialTheme.colorScheme.secondary
                                     )
                                 }
                                 IconButton(onClick = {
                                     localPlaylists.removeAll { it.id == playlist.id }
                                     prefs.edit().putString("local_playlists", encodePlaylists(localPlaylists)).apply()
                                     if (expandedPlaylistId == playlist.id) expandedPlaylistId = null
-                                }) { Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete playlist", tint = Muted) }
+                                }) { Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                             }
                             if (expandedPlaylistId == playlist.id) {
-                                HorizontalDivider(color = Muted.copy(alpha = 0.14f))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.14f))
                                 if (selectedTrackIds.isNotEmpty()) {
                                     TextButton(
                                         onClick = {
@@ -1122,10 +1117,10 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                             selectedTrackIds.clear()
                                         },
                                         modifier = Modifier.align(Alignment.End)
-                                    ) { Text("Add selected tracks", color = Cyan) }
+                                    ) { Text("Add selected tracks", color = MaterialTheme.colorScheme.secondary) }
                                 }
                                 if (playlistTracks.isEmpty()) {
-                                    Text("This playlist is empty. Search songs and select them, then tap Add selected tracks.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
+                                    Text("This playlist is empty. Search songs and select them, then tap Add selected tracks.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
                                 } else {
                                     playlistTracks.forEach { track ->
                                         TrackRow(
@@ -1197,13 +1192,13 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                         error = "Playlist search failed. The provider's public endpoint may be unavailable."
                                     } finally { loading = false }
                                 }
-                            }) { Icon(Icons.Rounded.Search, contentDescription = "Search playlists", tint = Cyan) }
+                            }) { Icon(Icons.Rounded.Search, contentDescription = "Search playlists", tint = MaterialTheme.colorScheme.secondary) }
                         }
                     }
                     if (playlistProvider == "YouTube Music") {
                         items(youtubePlaylists, key = { "ytplaylist-${it.id}" }) { playlist ->
                             Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel)
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface)
                                     .clickable {
                                         scope.launch {
                                             loading = true; error = null
@@ -1234,16 +1229,16 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 Cover(playlist.artworkUrl, Modifier.size(54.dp))
                                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                     Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(playlist.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text("Tap to import into Nuvora", color = Cyan, fontSize = 11.sp)
+                                    Text(playlist.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("Tap to import into Nuvora", color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp)
                                 }
-                                Icon(Icons.Rounded.DownloadDone, contentDescription = "Import playlist", tint = Cyan)
+                                Icon(Icons.Rounded.DownloadDone, contentDescription = "Import playlist", tint = MaterialTheme.colorScheme.secondary)
                             }
                         }
                     } else {
                         items(saavnPlaylists, key = { "saavnplaylist-${it.id}" }) { playlist ->
                             Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel)
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface)
                                     .clickable {
                                         scope.launch {
                                             loading = true; error = null
@@ -1272,10 +1267,10 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                 Cover(playlist.artworkUrl, Modifier.size(54.dp))
                                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                     Text(playlist.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(playlist.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text("Tap to import into Nuvora", color = Cyan, fontSize = 11.sp)
+                                    Text(playlist.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("Tap to import into Nuvora", color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp)
                                 }
-                                Icon(Icons.Rounded.DownloadDone, contentDescription = "Import playlist", tint = Cyan)
+                                Icon(Icons.Rounded.DownloadDone, contentDescription = "Import playlist", tint = MaterialTheme.colorScheme.secondary)
                             }
                         }
                     }
@@ -1285,7 +1280,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
             }
             3 -> Column(Modifier.fillMaxSize().padding(insets).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Text("Appearance", color = Muted, fontSize = 13.sp)
+                Text("Appearance", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Box {
                     OutlinedButton(onClick = { showThemes = true }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Rounded.Palette, contentDescription = null)
@@ -1303,7 +1298,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     }
                 }
                 HorizontalDivider()
-                Text("Home screen sections", color = Muted, fontSize = 13.sp)
+                Text("Home screen sections", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Mood cards", modifier = Modifier.weight(1f))
                     Switch(checked = showMoodSection, onCheckedChange = {
@@ -1326,7 +1321,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     })
                 }
                 HorizontalDivider()
-                Text("Music source", color = Muted, fontSize = 13.sp)
+                Text("Music source", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 OutlinedButton(onClick = { showProviders = true }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Rounded.LibraryMusic, contentDescription = null)
                     Text("  Source: $selectedProvider", modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1341,7 +1336,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         "SoundCloud" -> "EXTERNAL ONLY · Opens SoundCloud. In-app playback requires approved API credentials and compliance with SoundCloud's playback and attribution rules."
                         else -> "External service handoff."
                     },
-                    fontSize = 13.sp, color = Muted
+                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (selectedProvider == "Audius") {
                 OutlinedTextField(
@@ -1367,14 +1362,14 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 ) { Icon(Icons.Rounded.Save, contentDescription = null); Text("  Save source") }
                 }
                 HorizontalDivider()
-                Text("Downloads", color = Muted, fontSize = 13.sp)
+                Text("Downloads", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Text("Tap the download icon beside a track. Files are saved in Music/Nuvora and the Android download notification shows progress.", fontSize = 13.sp)
-                Text("Note: downloads depend on the selected provider's stream and usage permissions.", color = Muted, fontSize = 12.sp)
+                Text("Note: downloads depend on the selected provider's stream and usage permissions.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
             else -> active?.let { track ->
                 Column(
                     Modifier.fillMaxSize().padding(insets)
-                        .background(Brush.verticalGradient(listOf(Night, Color(0xFF111A31), Night)))
+                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, Color(0xFF111A31), MaterialTheme.colorScheme.background)))
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -1383,20 +1378,20 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         IconButton(onClick = { tab = 0 }) { Icon(Icons.Rounded.ArrowBack, contentDescription = "Back") }
                         Spacer(Modifier.weight(1f))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("NOW PLAYING", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                            Text("NUVORA PLAYER", color = Muted, fontSize = 9.sp, letterSpacing = 1.4.sp)
+                            Text("NOW PLAYING", color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                            Text("NUVORA PLAYER", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, letterSpacing = 1.4.sp)
                         }
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = { toggleFavorite(track) }) {
                             Icon(if (track.id in favorites) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                contentDescription = "Favourite", tint = if (track.id in favorites) Cyan else Muted)
+                                contentDescription = "Favourite", tint = if (track.id in favorites) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Spacer(Modifier.height(14.dp))
                     Surface(
                         shape = RoundedCornerShape(28.dp),
-                        color = Panel,
-                        border = BorderStroke(1.dp, Blue.copy(alpha = 0.22f)),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
                         shadowElevation = 18.dp,
                         modifier = Modifier.fillMaxWidth().aspectRatio(1.02f).heightIn(max = 310.dp)
                     ) {
@@ -1412,7 +1407,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     }
                     Spacer(Modifier.height(22.dp))
                     Text(track.title, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Text(track.artist, color = Muted, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(14.dp))
                     Slider(
                         value = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f,
@@ -1420,14 +1415,14 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         onValueChangeFinished = { if (durationMs > 0L) player.seekTo(positionMs) },
                         modifier = Modifier.fillMaxWidth().height(24.dp),
                         colors = SliderDefaults.colors(
-                            thumbColor = Cyan,
-                            activeTrackColor = Cyan,
-                            inactiveTrackColor = Muted.copy(alpha = 0.25f)
+                            thumbColor = MaterialTheme.colorScheme.secondary,
+                            activeTrackColor = MaterialTheme.colorScheme.secondary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
                         )
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatTime(positionMs), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                        Text(if (durationMs > 0L) formatTime(durationMs) else track.durationLabel, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text(formatTime(positionMs), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text(if (durationMs > 0L) formatTime(durationMs) else track.durationLabel, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                     }
                     if (playerError != null) {
                         Surface(
@@ -1438,9 +1433,9 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         ) {
                             Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.Start) {
                                 Text("Playback couldn't start", color = Color(0xFFFFA6A0), fontWeight = FontWeight.SemiBold)
-                                Text(playerError!!, color = Muted, fontSize = 12.sp)
+                                Text(playerError!!, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    TextButton(onClick = { play(track) }) { Text("Retry stream", color = Cyan) }
+                                    TextButton(onClick = { play(track) }) { Text("Retry stream", color = MaterialTheme.colorScheme.secondary) }
                                     if (track.id.startsWith("youtube-")) {
                                         TextButton(onClick = {
                                             runCatching {
@@ -1448,7 +1443,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                             }.onFailure {
                                                 Toast.makeText(context, "Could not open YouTube Music", Toast.LENGTH_SHORT).show()
                                             }
-                                        }) { Text("Open YouTube Music", color = Muted) }
+                                        }) { Text("Open YouTube Music", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                                     }
                                 }
                             }
@@ -1460,14 +1455,14 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             shuffleEnabled = !shuffleEnabled
                             applyModes()
                         }) {
-                            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (shuffleEnabled) Cyan else Muted)
+                            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle", tint = if (shuffleEnabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { skipPrevious() }) {
                             Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous track", modifier = Modifier.size(30.dp))
                         }
                         Surface(
                             shape = RoundedCornerShape(50),
-                            color = Blue,
+                            color = MaterialTheme.colorScheme.primary,
                             shadowElevation = 12.dp,
                             modifier = Modifier.size(70.dp).clickable { if (player.isPlaying) player.pause() else player.play() }
                         ) {
@@ -1489,7 +1484,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             Icon(
                                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                                 contentDescription = "Repeat mode",
-                                tint = if (repeatMode == Player.REPEAT_MODE_OFF) Muted else Cyan
+                                tint = if (repeatMode == Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.secondary
                             )
                         }
                     }
@@ -1500,7 +1495,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             Player.REPEAT_MODE_ALL -> "Repeat queue"
                             else -> if (shuffleEnabled) "Shuffle on" else "Now playing"
                         },
-                        color = Muted, fontSize = 11.sp
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp
                     )
                     TextButton(onClick = { showSleepTimer = true }) {
                         Icon(Icons.Rounded.Timer, contentDescription = null, modifier = Modifier.size(17.dp))
@@ -1517,7 +1512,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Rounded.Speed, contentDescription = "Playback speed", tint = Muted, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Speed, contentDescription = "Playback speed", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                         listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v ->
                             FilterChip(
                                 selected = speed == v,
@@ -1542,7 +1537,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     if (showProviders) {
         ModalBottomSheet(
             onDismissRequest = { showProviders = false },
-            containerColor = Panel,
+            containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             tonalElevation = 18.dp
         ) {
@@ -1551,7 +1546,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text("Choose your source", fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text("Pick a catalogue. In-app playback availability is shown clearly for each source.", color = Muted, fontSize = 13.sp)
+                Text("Pick a catalogue. In-app playback availability is shown clearly for each source.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Spacer(Modifier.height(4.dp))
                 providers.forEach { provider ->
                     val description = when (provider) {
@@ -1565,34 +1560,34 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                     val isNative = provider in listOf("YouTube Music", "Audius", "JioSaavn")
                     Surface(
                         shape = RoundedCornerShape(18.dp),
-                        color = if (provider == selectedProvider) Blue.copy(alpha = 0.15f) else Color(0x66182134),
+                        color = if (provider == selectedProvider) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color(0x66182134),
                         border = BorderStroke(
                             1.dp,
-                            if (provider == selectedProvider) Cyan.copy(alpha = 0.6f) else Muted.copy(alpha = 0.12f)
+                            if (provider == selectedProvider) MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
                         ),
                         modifier = Modifier.fillMaxWidth().clickable { selectProvider(provider) }
                     ) {
                         Row(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Surface(shape = RoundedCornerShape(12.dp), color = if (provider == selectedProvider) Blue.copy(alpha = 0.22f) else Panel, modifier = Modifier.size(42.dp)) {
+                            Surface(shape = RoundedCornerShape(12.dp), color = if (provider == selectedProvider) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surface, modifier = Modifier.size(42.dp)) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         if (isNative) Icons.Rounded.LibraryMusic else Icons.Rounded.OpenInNew,
                                         contentDescription = null,
-                                        tint = if (provider == selectedProvider) Cyan else Muted,
+                                        tint = if (provider == selectedProvider) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(21.dp)
                                     )
                                 }
                             }
                             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                                 Text(provider, fontWeight = FontWeight.SemiBold)
-                                Text(description, color = Muted, fontSize = 11.sp)
+                                Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             }
                             if (provider == selectedProvider) {
-                                Icon(Icons.Rounded.CheckCircle, contentDescription = "Selected", tint = Cyan)
+                                Icon(Icons.Rounded.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.secondary)
                             } else if (isNative) {
-                                Text("IN APP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Cyan)
+                                Text("IN APP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                             } else {
-                                Text("WEB", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Muted)
+                                Text("WEB", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -1617,21 +1612,21 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     if (showSleepTimer) {
         AlertDialog(
             onDismissRequest = { showSleepTimer = false },
-            containerColor = Panel,
+            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Sleep timer", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Pause playback automatically after:", color = Muted, fontSize = 13.sp)
+                    Text("Pause playback automatically after:", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     listOf(15, 30, 45, 60).forEach { minutes ->
                         Surface(
-                            color = if (sleepTimerMinutes == minutes) Blue.copy(alpha = 0.18f) else Panel,
+                            color = if (sleepTimerMinutes == minutes) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, if (sleepTimerMinutes == minutes) Cyan.copy(alpha = 0.6f) else Muted.copy(alpha = 0.15f)),
+                            border = BorderStroke(1.dp, if (sleepTimerMinutes == minutes) MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)),
                             modifier = Modifier.fillMaxWidth().clickable { sleepTimerMinutes = minutes; showSleepTimer = false }
                         ) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("$minutes minutes", modifier = Modifier.weight(1f))
-                                if (sleepTimerMinutes == minutes) Icon(Icons.Rounded.Check, contentDescription = null, tint = Cyan)
+                                if (sleepTimerMinutes == minutes) Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
                             }
                         }
                     }
@@ -1644,11 +1639,11 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
     if (showCreatePlaylist) {
         AlertDialog(
             onDismissRequest = { showCreatePlaylist = false },
-            containerColor = Panel,
+            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Create playlist", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Name your playlist. Selected tracks will be added automatically; you can also create an empty playlist.", color = Muted, fontSize = 13.sp)
+                    Text("Name your playlist. Selected tracks will be added automatically; you can also create an empty playlist.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     OutlinedTextField(
                         value = newPlaylistName,
                         onValueChange = { newPlaylistName = it },
@@ -1657,7 +1652,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         singleLine = true,
                         shape = RoundedCornerShape(16.dp)
                     )
-                    Text("${selectedTrackIds.size} selected track(s)", color = Cyan, fontSize = 12.sp)
+                    Text("${selectedTrackIds.size} selected track(s)", color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp)
                 }
             },
             confirmButton = {
@@ -1714,7 +1709,7 @@ private fun SearchBar(
 private fun StatusMessages(loading: Boolean, error: String?) {
     if (loading) Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        Text("Loading tracks…", color = Muted, modifier = Modifier.padding(start = 12.dp))
+        Text("Loading tracks…", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp))
     }
     if (error != null) Text(error, color = Color(0xFFFFA6A6), modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
 }
@@ -1741,7 +1736,7 @@ internal fun Cover(url: String?, modifier: Modifier = Modifier) {
 
     Box(
         modifier = modifier.clip(shape).background(
-            Brush.linearGradient(listOf(Blue, Panel, Color(0xFF25234C)))
+            Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.surface, Color(0xFF25234C)))
         ),
         contentAlignment = Alignment.Center
     ) {
@@ -1782,27 +1777,27 @@ private fun TrackRow(
 ) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .background(if (isActive) Color(0xFF1A2E4F) else Panel)
+            .background(if (isActive) Color(0xFF1A2E4F) else MaterialTheme.colorScheme.surface)
             .clickable(onClick = onPlay).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Cover(track.artworkUrl, Modifier.size(58.dp))
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(track.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(track.durationLabel, color = Cyan, fontSize = 10.sp)
+            Text(track.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(track.durationLabel, color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp)
         }
         IconButton(onClick = onFavorite) {
-            Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) Cyan else Muted)
+            Icon(if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = "Favourite", tint = if (favorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!track.id.startsWith("youtube-")) {
-            IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = Cyan) }
+            IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, contentDescription = "Download track", tint = MaterialTheme.colorScheme.secondary) }
         }
         if (onSelect != null) {
             IconButton(onClick = onSelect) {
                 Icon(if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.PlaylistAdd,
                     contentDescription = if (selected) "Selected for playlist" else "Select for playlist",
-                    tint = if (selected) Cyan else Muted)
+                    tint = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         val queueActions = LocalQueueActions.current
@@ -1811,7 +1806,7 @@ private fun TrackRow(
             var menuOpen by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = "More options", tint = Muted)
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "More options", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
