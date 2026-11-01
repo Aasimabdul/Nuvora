@@ -247,10 +247,18 @@ private fun explainPlaybackFailure(error: PlaybackException): String {
 }
 
 private fun downloadTrack(context: Context, track: MusicTrack) {
+    // Search/watch pages are not direct audio files. Never enqueue them as fake .mp3 downloads.
+    if (track.id.startsWith("youtube-") || track.streamUrl.contains("youtube.com/watch", ignoreCase = true) ||
+        track.streamUrl.contains("music.youtube.com", ignoreCase = true) || track.streamUrl.contains("youtu.be/", ignoreCase = true)) {
+        Toast.makeText(context, "Direct audio downloads are not available for this source. Save the playlist instead.", Toast.LENGTH_LONG).show()
+        return
+    }
     try {
         val safeTitle = track.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(70).ifBlank { "Nuvora track" }
         val audioUri = Uri.parse(track.streamUrl)
         require(audioUri.scheme.equals("https", ignoreCase = true) && !audioUri.host.isNullOrBlank()) { "No downloadable audio URL" }
+        val ext = audioUri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()
+            ?.takeIf { it in setOf("mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "webm") } ?: "audio"
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val request = DownloadManager.Request(audioUri)
             .setTitle(safeTitle)
@@ -258,7 +266,7 @@ private fun downloadTrack(context: Context, track: MusicTrack) {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "Nuvora/$safeTitle.mp3")
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "Nuvora/$safeTitle.$ext")
         manager.enqueue(request)
         val artwork = normalizeArtworkUrl(track.artworkUrl)
         if (!artwork.isNullOrBlank() && artwork.startsWith("https://", ignoreCase = true)) runCatching {
@@ -1961,6 +1969,12 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                         contentDescription = null,
                                         tint = if (provider == selectedProvider) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(21.dp)
+                                    )
+                                    AsyncImage(
+                                        model = providerLogoUrl(provider),
+                                        contentDescription = "$provider logo",
+                                        modifier = Modifier.size(24.dp),
+                                        contentScale = ContentScale.Fit
                                     )
                                 }
                             }
