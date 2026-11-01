@@ -544,12 +544,12 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         val countsJson = JSONObject().apply { playCounts.forEach { (id, count) -> put(id, count) } }
         prefs.edit().putString("play_counts", countsJson.toString()).apply()
         playerError = null
-        val viaService = servicePlayer != null && isOfficialTrack(track)
+        val viaService = servicePlayer != null
         val target: Player = if (viaService && servicePlayer != null) servicePlayer else localPlayer
         (if (viaService) localPlayer else servicePlayer)?.pause()
         useService = viaService
         if (viaService) {
-            // The UI owns the queue: each Audius track plays on its own and the UI handles next/shuffle/repeat-all.
+            // The UI owns the queue for every provider; MediaSession exposes system notification controls.
             target.repeatMode = if (repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
             target.shuffleModeEnabled = false
         } else {
@@ -564,9 +564,10 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                 try {
                     val videoId = track.id.removePrefix("youtube-")
                     val streamUrl = YouTubeMusicPlaybackRepository.resolveAudioStream(videoId)
-                    localPlayer.setMediaItem(MediaItem.Builder().setMediaId(track.id).setUri(streamUrl).build())
-                    localPlayer.prepare()
-                    localPlayer.play()
+                    val resolvedTrack = track.copy(streamUrl = streamUrl)
+                    target.setMediaItem(resolvedTrack.toServiceMediaItem())
+                    target.prepare()
+                    target.play()
                 } catch (e: Exception) {
                     playerError = "Couldn't open this stream. YouTube may have blocked the request or the stream may have expired. Try another track or check your connection."
                     playing = false
@@ -1120,7 +1121,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             TrackRow(
                                 track, active?.id == track.id, { queueTracks = saved; play(track) },
                                 { toggleFavorite(track) }, true,
-                                { if (!track.id.startsWith("youtube-")) downloadTrack(context, track) },
+                                { if (track.id.startsWith("youtube-")) Toast.makeText(context, "Direct download is unavailable for YouTube Music tracks.", Toast.LENGTH_SHORT).show() else downloadTrack(context, track) },
                                 { toggleTrackSelection(track) }, track.id in selectedTrackIds
                             )
                         }
@@ -1131,7 +1132,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                             TrackRow(
                                 track, active?.id == track.id, { queueTracks = mostPlayed; play(track) },
                                 { toggleFavorite(track) }, track.id in favorites,
-                                { if (!track.id.startsWith("youtube-")) downloadTrack(context, track) },
+                                { if (track.id.startsWith("youtube-")) Toast.makeText(context, "Direct download is unavailable for YouTube Music tracks.", Toast.LENGTH_SHORT).show() else downloadTrack(context, track) },
                                 { toggleTrackSelection(track) }, track.id in selectedTrackIds
                             )
                         }
@@ -1210,7 +1211,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                                             track, active?.id == track.id,
                                             { queueTracks = playlistTracks; play(track) },
                                             { toggleFavorite(track) }, track.id in favorites,
-                                            { if (!track.id.startsWith("youtube-")) downloadTrack(context, track) },
+                                            { if (track.id.startsWith("youtube-")) Toast.makeText(context, "Direct download is unavailable for YouTube Music tracks.", Toast.LENGTH_SHORT).show() else downloadTrack(context, track) },
                                             { toggleTrackSelection(track) }, track.id in selectedTrackIds
                                         )
                                     }
