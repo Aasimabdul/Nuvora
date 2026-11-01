@@ -4,10 +4,42 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Subtle audio waves sit behind the N, matching the approved Nuvora icon. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#176BFF"
+        android:strokeWidth="1.25"
+        android:strokeLineCap="round"
+        android:pathData="M4,55 C14,55 16,44 24,43 C31,42 34,50 39,52 C45,55 49,58 54,60" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#00D9FF"
+        android:strokeWidth="1.55"
+        android:strokeLineCap="round"
+        android:pathData="M4,57 C15,63 19,54 25,49 C31,44 34,47 39,52" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#176BFF"
+        android:strokeWidth="1.25"
+        android:strokeLineCap="round"
+        android:pathData="M69,60 C77,59 81,53 86,47 C91,41 96,44 104,51" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#00D9FF"
+        android:strokeWidth="1.55"
+        android:strokeLineCap="round"
+        android:pathData="M69,64 C78,64 83,57 88,52 C94,46 98,48 104,54" />
+
+    <!-- Ribbon N in the Nuvora cyan-to-blue palette. -->
     <path
         android:fillColor="#00D9FF"
         android:pathData="M27,66 L27,39 C27,31 36,28 41,35 L68,69 L68,40 C68,32 77,29 82,36 L82,72 C82,81 72,84 66,76 L41,44 L41,69 C41,81 27,83 27,71 Z" />
     <path
         android:fillColor="#176BFF"
         android:pathData="M41,44 L68,69 L68,40 C68,32 77,29 82,36 L82,72 C82,81 72,84 66,76 Z" />
+
+    <!-- Rounded note-head endpoints integrated into the N. -->
+    <path android:fillColor="#00E5FF" android:pathData="M30.5,63.5 A6.5,6.5 0,1 0,30.5 76.5 A6.5,6.5 0,1 0,30.5 63.5" />
+    <path android:fillColor="#00D9FF" android:pathData="M81.5,30 A6.5,6.5 0,1 0,81.5 43 A6.5,6.5 0,1 0,81.5 30" />
 </vector>
