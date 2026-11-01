@@ -2,6 +2,7 @@ package com.simbuild.nuvora
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.audiofx.Equalizer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -20,6 +21,7 @@ import androidx.media3.session.MediaSessionService
 object PlaybackBridge {
     @Volatile var onNext: (() -> Unit)? = null
     @Volatile var onPrevious: (() -> Unit)? = null
+    @Volatile var applyEqualizer: ((Boolean, List<Short>) -> Unit)? = null
 }
 
 /** Exposes next/previous to the notification and lock screen even though each item is played on its own. */
@@ -50,6 +52,7 @@ private class QueueAwarePlayer(player: Player) : ForwardingPlayer(player) {
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var exoPlayer: ExoPlayer? = null
+    private var equalizer: Equalizer? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -75,6 +78,20 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
         exoPlayer = player
+        equalizer = runCatching { Equalizer(0, player.audioSessionId) }.getOrNull()
+        PlaybackBridge.applyEqualizer = equalizerApply@ { enabled, requestedLevels ->
+            val effect = equalizer ?: return@equalizerApply
+            runCatching {
+                val count = effect.numberOfBands.toInt()
+                val range = effect.bandLevelRange
+                for (band in 0 until count) {
+                    val index = if (count <= 1) 0 else band * (requestedLevels.size - 1) / (count - 1)
+                    val level = requestedLevels.getOrElse(index) { 0 }.coerceIn(range[0], range[1])
+                    effect.setBandLevel(band.toShort(), level)
+                }
+                effect.enabled = enabled
+            }
+        }
         val builder = MediaSession.Builder(this, QueueAwarePlayer(player))
         packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
             builder.setSessionActivity(
@@ -92,6 +109,10 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        PlaybackBridge.applyEqualizer = null
+        runCatching { equalizer?.enabled = false }
+        equalizer?.release()
+        equalizer = null
         session?.release()
         session = null
         exoPlayer?.release()
