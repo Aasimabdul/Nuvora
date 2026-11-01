@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -45,6 +46,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -106,7 +108,9 @@ private fun decodeMusicTracks(raw: String?): List<MusicTrack> {
                     id = id,
                     title = item.optString("title", "Untitled track"),
                     artist = item.optString("artist", "Unknown artist"),
-                    artworkUrl = item.optString("artworkUrl").takeIf { it.startsWith("https://") },
+                    artworkUrl = normalizeArtworkUrl(item.optString("artworkUrl").takeIf { it != "null" })
+                        ?: id.removePrefix("youtube-").takeIf { id.startsWith("youtube-") && it.matches(Regex("[A-Za-z0-9_-]{11}")) }
+                            ?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" },
                     durationSeconds = item.optInt("durationSeconds", 0),
                     permalink = item.optString("permalink", ""),
                     streamUrl = item.optString("streamUrl", "")
@@ -1517,13 +1521,52 @@ private fun StatusMessages(loading: Boolean, error: String?) {
     if (error != null) Text(error, color = Color(0xFFFFA6A6), modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
 }
 
+internal fun normalizeArtworkUrl(raw: String?): String? {
+    val value = raw?.trim()?.replace("&amp;", "&")?.takeIf { it.isNotBlank() } ?: return null
+    val secureUrl = when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) -> "https://" + value.substringAfter("://")
+        value.startsWith("https://", ignoreCase = true) -> value
+        else -> return null
+    }
+    return runCatching { Uri.parse(secureUrl) }.getOrNull()
+        ?.takeIf { it.scheme.equals("https", ignoreCase = true) && !it.host.isNullOrBlank() }
+        ?.toString()
+}
+
 @Composable
 private fun Cover(url: String?, modifier: Modifier = Modifier) {
-    if (url != null) {
-        AsyncImage(model = url, contentDescription = "Track artwork", modifier = modifier.clip(RoundedCornerShape(18.dp)))
-    } else {
-        Box(modifier.clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Blue, Panel, Color(0xFF25234C)))), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(52.dp))
+    val context = LocalContext.current
+    val imageUrl = remember(url) { normalizeArtworkUrl(url) }
+    var imageFailed by remember(imageUrl) { mutableStateOf(imageUrl == null) }
+    val shape = RoundedCornerShape(18.dp)
+
+    Box(
+        modifier = modifier.clip(shape).background(
+            Brush.linearGradient(listOf(Blue, Panel, Color(0xFF25234C)))
+        ),
+        contentAlignment = Alignment.Center
+    ) {
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Rounded.MusicNote,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size((maxWidth * 0.34f).coerceAtMost(56.dp))
+            )
+        }
+
+        if (imageUrl != null && !imageFailed) {
+            AsyncImage(
+                model = remember(imageUrl) {
+                    ImageRequest.Builder(context).data(imageUrl).crossfade(180).build()
+                },
+                contentDescription = "Track artwork",
+                contentScale = ContentScale.Crop,
+                onSuccess = { imageFailed = false },
+                onError = { imageFailed = true },
+                modifier = Modifier.fillMaxSize().clip(shape)
+            )
         }
     }
 }
