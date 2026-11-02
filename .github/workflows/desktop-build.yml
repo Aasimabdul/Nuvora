@@ -105,13 +105,13 @@ jobs:
       - name: Verify release files and publish assets
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_REF: ${{ github.ref }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
+          REF_VALUE: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            TAG_NAME="$GITHUB_REF_NAME"
+          if [[ "$REF_VALUE" == refs/tags/* ]]; then
+            TAG_NAME="$REF_NAME"
           else
             VERSION=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
             TAG_NAME="v$VERSION"
