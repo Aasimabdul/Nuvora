@@ -40,6 +40,8 @@ jobs:
         run: npm run check
       - name: Unit tests
         run: npm test
+      - name: Generate application icons
+        run: npm run tauri icon src-tauri/icons/nuvora.svg
       - name: Build Windows NSIS installer
         run: npm run tauri build -- --bundles nsis
       - name: Upload Windows installer
@@ -74,6 +76,8 @@ jobs:
         run: npm run check
       - name: Unit tests
         run: npm test
+      - name: Generate application icons
+        run: npm run tauri icon src-tauri/icons/nuvora.svg
       - name: Build AppImage and DEB
         run: npm run tauri build -- --bundles appimage,deb
       - name: Upload Linux packages
