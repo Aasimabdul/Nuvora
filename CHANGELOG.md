@@ -2,6 +2,12 @@
 
 All notable changes to Nuvora are documented here. Versions before 1.0.0 were test releases; their highlights are retained below.
 
+## 1.1.0 — UI/UX design upgrade
+
+- **Glassmorphism / neomorphism design pass begins.** Added shared design tokens (`NuvoraTokens.kt`) so spacing, corner radii and component sizes stay consistent across every screen and theme palette.
+- **Up Next queue sheet redesigned:** animated now-playing equalizer bars over the current track's artwork, elevated "lift" effect with a subtle scale while dragging rows, a friendly icon-led empty state, track-count subtitle in the header, and rounded rows with consistent spacing.
+- Queue behaviour is unchanged: tap to play, long-press the handle to reorder, swipe to remove, clear upcoming — all provider-agnostic callbacks preserved.
+
 ## Unreleased
 
 - Updated the Android launcher icon to the Nuvora N mark with cyan-to-blue styling and subtle music-wave details.
