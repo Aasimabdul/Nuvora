@@ -113,6 +113,7 @@ jobs:
           test "$(find release-assets -type f -name '*.exe' | wc -l)" -ge 1
           test "$(find release-assets -type f -name '*.AppImage' | wc -l)" -ge 1
           test "$(find release-assets -type f -name '*.deb' | wc -l)" -ge 1
+          (cd release-assets && sha256sum *.exe *.AppImage *.deb > SHA256SUMS.txt)
           if ! gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1; then
             gh release create "$TAG_NAME" --repo "$REPOSITORY" \
               --title "Nuvora $TAG_NAME" \
