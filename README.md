@@ -2,10 +2,11 @@
 
 # Nuvora
 
-**An online-first Android music discovery and streaming app** built with Kotlin and Jetpack Compose. Search supported music sources from one place, play eligible tracks, manage your queue and library, and customise the player with a dark navy / cyan-blue look.
+**An online-first Android music discovery and streaming app** built with Kotlin and Jetpack Compose. Search supported music sources from one place, play eligible tracks, manage your queue and library, and enjoy a refined glassmorphism-inspired UI with a dark navy / cyan-blue identity.
 
 [![Latest release](https://img.shields.io/github/v/release/Aasimabdul/Nuvora?label=release&color=4D8DFF)](https://github.com/Aasimabdul/Nuvora/releases/latest)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84)
+![Version](https://img.shields.io/badge/version-1.1.0-4D8DFF)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 [**Download the latest APK**](https://github.com/Aasimabdul/Nuvora/releases/latest) · [Report a bug](https://github.com/Aasimabdul/Nuvora/issues)
@@ -13,6 +14,14 @@
 </div>
 
 ---
+
+## What's new in 1.1.0 — UI/UX design upgrade
+
+Nuvora 1.1.0 begins the glassmorphism / neomorphism design pass described in the UI blueprint:
+
+- **Shared design tokens** (`NuvoraTokens.kt`) for consistent spacing, corner radii and component sizes across all screens and theme palettes.
+- **Redesigned Up Next queue sheet** with an animated now-playing equalizer over the current track's artwork, a physical "lift" effect while dragging rows to reorder, an icon-led empty state, and a track-count header.
+- Rounded rows, unified spacing and theme-aware colours throughout the queue, with all playback behaviour and provider callbacks preserved.
 
 ## About Nuvora
 
@@ -29,11 +38,11 @@ Nuvora brings music discovery from several online services into one Android inte
 | **Playback** | Media3 / ExoPlayer playback for playable results, progress/seek controls, previous/next, shuffle, repeat and playback speed where available |
 | **Mini-player & Now Playing** | Persistent mini-player and a dedicated full player screen |
 | **Background audio** | MediaSession service for supported Audius playback, with notification, lock-screen and compatible Bluetooth/system media controls |
-| **Queue** | Up Next sheet, play a queued track, reorder, swipe to remove, clear upcoming tracks, Play next and Add to queue |
+| **Queue** | Up Next sheet with animated now-playing indicator, tap-to-play, drag-to-reorder with lift feedback, swipe to remove, clear upcoming tracks, Play next and Add to queue |
 | **Library** | Favourites, recently played history, play counts and local playlists stored on the device |
 | **Playlist discovery** | Best-effort import/browsing of public YouTube Music and JioSaavn playlists; support depends on source response and playlist accessibility |
 | **Sound settings** | Sleep timer with presets/custom duration, equalizer presets, custom five-band levels and saved custom presets |
-| **Themes** | Multiple colour palettes including Neon Blue, AMOLED Black, Purple Night, Forest, Aurora, Pearl Light, Graphite Silver and Material You Dynamic colour on Android 12+ |
+| **Themes** | 16 colour palettes including Neon Blue, AMOLED Black, Purple Night, Forest, Aurora, Pearl Light, Graphite Silver, Ocean Teal and Material You Dynamic colour on Android 12+ |
 | **Downloads** | Download action is available only where the provider response supplies a usable downloadable URL. Availability and permitted use depend on the source; artwork is stored separately when supported |
 
 ## Music sources: what works and how
@@ -91,12 +100,13 @@ GitHub Actions builds on pushes to `main` and on version tags beginning with `v`
 ## Technical overview
 
 - **Language / UI:** Kotlin, Jetpack Compose, Material 3
+- **Design system:** Shared `NuvoraTokens` design tokens for spacing, radii and component sizes; glassmorphism-inspired surfaces with theme-aware colours
 - **Playback:** AndroidX Media3 / ExoPlayer and MediaSession
 - **Networking / provider adapters:** provider-specific repository classes for Audius, YouTube Music and JioSaavn
 - **Artwork:** Coil Compose
 - **App ID:** `com.simbuild.nuvora`
 - **Minimum SDK:** 26
-- **Current version in Gradle:** `1.0.0` (versionCode `24`)
+- **Current version in Gradle:** `1.1.0` (versionCode `25`)
 
 The app uses a shared `MusicTrack` model for provider results, while provider adapters keep each service's response parsing separate. This makes the UI more consistent, but provider capabilities and playback rules still differ.
 
