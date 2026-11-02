@@ -94,8 +94,6 @@ export default function App() {
     audio.muted = muted;
   }, [volume, muted]);
 
-  const activeList = useMemo(() => section === "Library" ? favorites : trending, [section, favorites, trending]);
-
   const playTrack = useCallback(async (track: AudiusTrack) => {
     const audio = audioRef.current;
     if (!audio) return;
