@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AudioLines, CircleHelp, Compass, Disc3, Heart, Home, Library, ListMusic,
   ListPlus, LoaderCircle, Music2, Pause, Play, Radio, Search, Settings2,
@@ -143,7 +143,6 @@ export default function App() {
     await playTrack(next);
   };
   const clearSearch = () => { setQuery(""); setResults([]); setError(""); };
-  const activeList = useMemo(() => section === "Library" ? favorites : trending, [section, favorites, trending]);
 
   return (
     <div className="app-shell">
