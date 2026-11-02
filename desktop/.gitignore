@@ -1,0 +1,8 @@
+node_modules/
+dist/
+src-tauri/target/
+release-files/
+*.log
+.env
+.env.*
+!.env.example

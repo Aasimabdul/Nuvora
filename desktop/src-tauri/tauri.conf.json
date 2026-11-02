@@ -1,0 +1,8 @@
+{
+  "$schema":"https://schema.tauri.app/config/2",
+  "productName":"Nuvora","version":"1.1.0","identifier":"com.simbuild.nuvora.desktop",
+  "build":{"beforeDevCommand":"npm run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"npm run build","frontendDist":"../dist"},
+  "app":{"windows":[{"title":"Nuvora","width":1240,"height":820,"minWidth":760,"minHeight":560,"center":true,"resizable":true}],
+  "security":{"csp":"default-src 'self'; img-src 'self' asset: http://asset.localhost https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src ipc: http://ipc.localhost https://api.audius.co https://*.audius.co https://stream.radioparadise.com https://ice.somafm.com; media-src 'self' blob: https://stream.radioparadise.com https://ice.somafm.com;"}},
+  "bundle":{"active":true,"targets":["nsis","appimage","deb"],"category":"Music","shortDescription":"Music discovery and online radio","longDescription":"Nuvora Desktop brings music discovery and authorized public audio streams to Windows and Linux."}
+}
