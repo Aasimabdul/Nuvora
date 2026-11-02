@@ -92,7 +92,7 @@ jobs:
 
   publish-desktop-assets:
     name: Attach desktop packages to versioned release
-    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V')
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/V') || (github.ref == 'refs/heads/main' && github.event_name == 'push' && contains(github.event.head_commit.message, 'Release Nuvora'))
     needs: [windows, linux]
     runs-on: ubuntu-latest
     steps:
@@ -105,17 +105,25 @@ jobs:
       - name: Verify release files and publish assets
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.ref_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG_NAME="$GITHUB_REF_NAME"
+          else
+            VERSION=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+            TAG_NAME="v$VERSION"
+          fi
+          echo "Publishing desktop assets for $TAG_NAME"
           find release-assets -type f -maxdepth 3 -print
           test "$(find release-assets -type f -name '*.exe' | wc -l)" -ge 1
           test "$(find release-assets -type f -name '*.AppImage' | wc -l)" -ge 1
           test "$(find release-assets -type f -name '*.deb' | wc -l)" -ge 1
           (cd release-assets && sha256sum *.exe *.AppImage *.deb > SHA256SUMS.txt)
           if ! gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$TAG_NAME" --repo "$REPOSITORY" \
+            gh release create "$TAG_NAME" --repo "$REPOSITORY" --target main \
               --title "Nuvora $TAG_NAME" \
               --notes "Nuvora Android and desktop release. Desktop assets are built on native Windows and Linux runners."
           fi
