@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "appimage", "deb"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "category": "Music",
     "shortDescription": "Music discovery and direct-stream player",
     "longDescription": "Discover music and play authorized direct audio streams in a lightweight desktop app."
