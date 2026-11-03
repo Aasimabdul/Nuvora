@@ -50,9 +50,9 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Generate application icons
-        run: npm run tauri icon src-tauri/icons/nuvora.svg
+        run: npm run tauri -- icon src-tauri/icons/nuvora.svg
       - name: Build Windows NSIS installer
-        run: npm run tauri build -- --bundles nsis
+        run: npm run tauri -- build --bundles nsis
       - name: Verify Windows installer
         shell: pwsh
         run: |
@@ -96,7 +96,7 @@ jobs:
       - name: Generate application icons
         run: npm run tauri icon src-tauri/icons/nuvora.svg
       - name: Build AppImage and DEB
-        run: npm run tauri build -- --bundles appimage,deb
+        run: npm run tauri -- build --bundles appimage,deb
       - name: Verify Linux packages
         shell: bash
         run: |
@@ -160,6 +160,7 @@ jobs:
           test "${#appimages[@]}" -ge 1
           test "${#debs[@]}" -ge 1
 
+          chmod +x release-assets/*.AppImage
           (cd release-assets && find . -maxdepth 2 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
           gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1 || {
             echo "Release $TAG_NAME does not exist yet; waiting for the Android release workflow."
