@@ -1,0 +1,177 @@
+name: Nuvora Desktop Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*', 'V*']
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop-build.yml'
+      - 'README.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop-build.yml'
+      - 'README.md'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing Android release tag to attach desktop packages to (for example v1.1.0)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nuvora-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows NSIS installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript check
+        run: npm run check
+      - name: Unit tests
+        run: npm test
+      - name: Generate application icons
+        run: npm run tauri -- icon src-tauri/icons/nuvora.svg
+      - name: Build Windows NSIS installer
+        run: npm run tauri -- build --bundles nsis
+      - name: Verify Windows installer
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe"
+          if (-not $files -or $files.Count -lt 1) { throw "No Windows NSIS installer was produced." }
+          $files | ForEach-Object { if ($_.Length -le 1MB) { throw "Installer looks unexpectedly small: $($_.Name)" } }
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvora-desktop-windows
+          path: desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  linux:
+    name: Linux AppImage and Debian package
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl file libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 \
+            libwebkit2gtk-4.1-dev libgtk-3-dev
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript check
+        run: npm run check
+      - name: Unit tests
+        run: npm test
+      - name: Generate application icons
+        run: npm run tauri icon src-tauri/icons/nuvora.svg
+      - name: Build AppImage and DEB
+        run: npm run tauri -- build --bundles appimage,deb
+      - name: Verify Linux packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          deb="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$appimage" && test -s "$appimage" && test -x "$appimage"
+          test -n "$deb" && test -s "$deb"
+          file "$appimage" "$deb"
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvora-desktop-linux
+          path: |
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            desktop/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-desktop-assets:
+    name: Attach desktop packages to the existing versioned release
+    if: >-
+      always() &&
+      needs.windows.result == 'success' &&
+      needs.linux.result == 'success' &&
+      (
+        startsWith(github.ref, 'refs/tags/v') ||
+        startsWith(github.ref, 'refs/tags/V') ||
+        (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'Release Nuvora'))
+      )
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: nuvora-desktop-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify artifacts and attach to the Android release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_VALUE: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$INPUT_TAG" ]]; then
+            TAG_NAME="$INPUT_TAG"
+          elif [[ "$REF_VALUE" == refs/tags/* ]]; then
+            TAG_NAME="$REF_NAME"
+          else
+            VERSION="$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")"
+            TAG_NAME="v$VERSION"
+          fi
+
+          test -n "$TAG_NAME"
+          mapfile -t installers < <(find release-assets -maxdepth 2 -type f -name '*.exe' -size +1M)
+          mapfile -t appimages < <(find release-assets -maxdepth 2 -type f -name '*.AppImage' -size +1M)
+          mapfile -t debs < <(find release-assets -maxdepth 2 -type f -name '*.deb' -size +1M)
+          test "${#installers[@]}" -ge 1
+          test "${#appimages[@]}" -ge 1
+          test "${#debs[@]}" -ge 1
+
+          chmod +x release-assets/*.AppImage
+          (cd release-assets && find . -maxdepth 2 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+          if ! gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo "Creating versioned release $TAG_NAME. The Android workflow will attach the APK when the tag is pushed."
+            gh release create "$TAG_NAME" --repo "$REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Nuvora $TAG_NAME" \
+              --notes "Nuvora Desktop for Windows and Linux. Includes a Windows installer, Linux AppImage, Debian package, and SHA-256 checksums. Android APK is published by the Android release workflow."
+          fi
+
+          gh release upload "$TAG_NAME" release-assets/* --repo "$REPOSITORY" --clobber
+          gh release view "$TAG_NAME" --repo "$REPOSITORY"

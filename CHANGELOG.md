@@ -10,6 +10,9 @@ All notable changes to Nuvora are documented here. Versions before 1.0.0 were te
 
 ## Unreleased
 
+- Started a separate Tauri 2 / React / TypeScript desktop app in `desktop/`, without migrating Android sources.
+- Added a dark navy/cyan desktop shell, Audius public catalog discovery, direct stream playback, local favorites/recent/queue state, and Windows/Linux packaging workflow scaffolding. Desktop release assets are only published after native Windows and Linux builds succeed.
+
 - Updated the Android launcher icon to the Nuvora N mark with cyan-to-blue styling and subtle music-wave details.
 - Expanded the README with the current feature list, provider-by-provider capabilities, playback architecture, limitations, install/build instructions and troubleshooting details.
 - Screenshots are intentionally not included yet; add real app screenshots after they are provided and verified.
