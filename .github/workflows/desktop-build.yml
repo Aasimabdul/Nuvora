@@ -125,7 +125,8 @@ jobs:
       (
         startsWith(github.ref, 'refs/tags/v') ||
         startsWith(github.ref, 'refs/tags/V') ||
-        (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+        (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'Release Nuvora'))
       )
     needs: [windows, linux]
     runs-on: ubuntu-latest
@@ -148,8 +149,11 @@ jobs:
           set -euo pipefail
           if [[ -n "$INPUT_TAG" ]]; then
             TAG_NAME="$INPUT_TAG"
-          else
+          elif [[ "$REF_VALUE" == refs/tags/* ]]; then
             TAG_NAME="$REF_NAME"
+          else
+            VERSION="$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")"
+            TAG_NAME="v$VERSION"
           fi
 
           test -n "$TAG_NAME"
@@ -162,17 +166,11 @@ jobs:
 
           chmod +x release-assets/*.AppImage
           (cd release-assets && find . -maxdepth 2 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
-          gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1 || {
-            echo "Release $TAG_NAME does not exist yet; waiting for the Android release workflow."
-            for attempt in $(seq 1 30); do
-              sleep 10
-              if gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1; then break; fi
-            done
-          }
-
           if ! gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1; then
-            echo "Android release $TAG_NAME was not created. Refusing to create a potentially duplicate release; rerun after the Android workflow publishes it." >&2
-            exit 1
+            echo "Creating versioned release $TAG_NAME. The Android workflow will attach the APK when the tag is pushed."
+            gh release create "$TAG_NAME" --repo "$REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Nuvora $TAG_NAME" \
+              --notes "Nuvora Desktop for Windows and Linux. Includes a Windows installer, Linux AppImage, Debian package, and SHA-256 checksums. Android APK is published by the Android release workflow."
           fi
 
           gh release upload "$TAG_NAME" release-assets/* --repo "$REPOSITORY" --clobber
