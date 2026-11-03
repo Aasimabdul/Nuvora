@@ -16,7 +16,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -556,7 +561,9 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         while (active != null) {
             positionMs = player.currentPosition.coerceAtLeast(0L)
             durationMs = player.duration.takeIf { it > 0L } ?: 0L
-            kotlinx.coroutines.delay(500)
+            // Progress needs tighter updates during playback; while paused, avoid
+            // waking and invalidating the UI twice per second for an unchanged value.
+            kotlinx.coroutines.delay(if (playing) 1_000L else 4_000L)
         }
     }
 
@@ -1015,7 +1022,23 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
             }
         }
     ) { insets ->
-        Crossfade(targetState = tab, animationSpec = tween(durationMillis = 220), label = "screen-fade") { screen ->
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    (slideInHorizontally(animationSpec = tween(210)) { width -> width / 18 } +
+                        fadeIn(animationSpec = tween(190))) togetherWith
+                        (slideOutHorizontally(animationSpec = tween(180)) { width -> -width / 24 } +
+                            fadeOut(animationSpec = tween(160)))
+                } else {
+                    (slideInHorizontally(animationSpec = tween(210)) { width -> -width / 18 } +
+                        fadeIn(animationSpec = tween(190))) togetherWith
+                        (slideOutHorizontally(animationSpec = tween(180)) { width -> width / 24 } +
+                            fadeOut(animationSpec = tween(160)))
+                }
+            },
+            label = "tab-slide-fade"
+        ) { screen ->
         when (screen) {
             0 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Row(
