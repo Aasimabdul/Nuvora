@@ -10,6 +10,10 @@ All notable changes to Nuvora are documented here. Versions before 1.0.0 were te
 
 ## Unreleased
 
+- **UI responsiveness:** reduce playback progress polling frequency while paused and during playback to avoid unnecessary frequent UI state updates.
+- **Tab navigation:** directional slide-and-fade transitions between existing screens, with a subtle selected navigation icon scale animation.
+- **Validation note:** Android CI build is in progress; device-level frame timing and playback regression checks are still required before claiming measured performance gains.
+
 - Updated the Android launcher icon to the Nuvora N mark with cyan-to-blue styling and subtle music-wave details.
 - Expanded the README with the current feature list, provider-by-provider capabilities, playback architecture, limitations, install/build instructions and troubleshooting details.
 - Screenshots are intentionally not included yet; add real app screenshots after they are provided and verified.
