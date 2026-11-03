@@ -16,12 +16,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -55,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -561,9 +557,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
         while (active != null) {
             positionMs = player.currentPosition.coerceAtLeast(0L)
             durationMs = player.duration.takeIf { it > 0L } ?: 0L
-            // Progress needs tighter updates during playback; while paused, avoid
-            // waking and invalidating the UI twice per second for an unchanged value.
-            kotlinx.coroutines.delay(if (playing) 1_000L else 4_000L)
+            kotlinx.coroutines.delay(500)
         }
     }
 
@@ -1003,10 +997,24 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
                         val labels = listOf("Home", "Search", "Playlists", "Settings")
                         val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Search, Icons.Rounded.QueueMusic, Icons.Rounded.Settings)
                         labels.forEachIndexed { index, label ->
+                            val iconScale by animateFloatAsState(
+                                targetValue = if (tab == index) 1.08f else 1f,
+                                animationSpec = tween(180),
+                                label = "nav-icon-scale"
+                            )
                             NavigationBarItem(
                                 selected = tab == index,
-                                onClick = { tab = index },
-                                icon = { Icon(icons[index], contentDescription = label) },
+                                onClick = { if (tab != index) tab = index },
+                                icon = {
+                                    Icon(
+                                        icons[index],
+                                        contentDescription = label,
+                                        modifier = Modifier.graphicsLayer {
+                                            scaleX = iconScale
+                                            scaleY = iconScale
+                                        }
+                                    )
+                                },
                                 label = { Text(label, fontSize = 10.sp) },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -1022,23 +1030,7 @@ private fun NuvoraApp(localPlayer: ExoPlayer, servicePlayer: Player?, themeIndex
             }
         }
     ) { insets ->
-        AnimatedContent(
-            targetState = tab,
-            transitionSpec = {
-                if (targetState > initialState) {
-                    (slideInHorizontally(animationSpec = tween(210)) { width -> width / 18 } +
-                        fadeIn(animationSpec = tween(190))) togetherWith
-                        (slideOutHorizontally(animationSpec = tween(180)) { width -> -width / 24 } +
-                            fadeOut(animationSpec = tween(160)))
-                } else {
-                    (slideInHorizontally(animationSpec = tween(210)) { width -> -width / 18 } +
-                        fadeIn(animationSpec = tween(190))) togetherWith
-                        (slideOutHorizontally(animationSpec = tween(180)) { width -> width / 24 } +
-                            fadeOut(animationSpec = tween(160)))
-                }
-            },
-            label = "tab-slide-fade"
-        ) { screen ->
+        Crossfade(targetState = tab, animationSpec = tween(durationMillis = 220), label = "screen-fade") { screen ->
         when (screen) {
             0 -> Column(Modifier.fillMaxSize().padding(insets)) {
                 Row(
