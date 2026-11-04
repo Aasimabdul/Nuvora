@@ -1,87 +1,71 @@
 <div align="center">
 
-# Nuvora
+# Nuvora — Free, Open-Source Android Music Player
 
-**An online-first Android music discovery and streaming app** built with Kotlin and Jetpack Compose. Search supported music sources from one place, play eligible tracks, manage your queue and library, and enjoy a refined glassmorphism-inspired UI with a dark navy / cyan-blue identity.
+**Discover music. Keep your listening flow simple.** Nuvora is a free, open-source Android music discovery and player app built with Kotlin and Jetpack Compose. Search supported online music sources, play tracks when a compatible stream is available, manage your queue and personal library, and use a modern dark navy / cyan-blue interface.
 
-[![Latest release](https://img.shields.io/github/v/release/Aasimabdul/Nuvora?label=release&color=4D8DFF)](https://github.com/Aasimabdul/Nuvora/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/Aasimabdul/Nuvora?label=latest%20release&color=42bff5)](https://github.com/Aasimabdul/Nuvora/releases/latest)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84)
-![Version](https://img.shields.io/badge/version-1.1.0-4D8DFF)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
-[**Download the latest APK**](https://github.com/Aasimabdul/Nuvora/releases/latest) · [Report a bug](https://github.com/Aasimabdul/Nuvora/issues)
+[**Download Android APK**](https://github.com/Aasimabdul/Nuvora/releases/latest/download/Nuvora_Music.apk) · [Official website](https://aasimabdul.github.io/Nuvora/) · [All releases](https://github.com/Aasimabdul/Nuvora/releases) · [Report a bug](https://github.com/Aasimabdul/Nuvora/issues)
 
 </div>
 
 ---
 
-## What's new in 1.1.0 — UI/UX design upgrade
+## What is Nuvora?
 
-Nuvora 1.1.0 begins the glassmorphism / neomorphism design pass described in the UI blueprint:
+Nuvora is an independent Android music player project focused on **online music discovery, supported in-app playback, and a personal listening library**. It brings selected music sources into one interface without pretending that every provider offers the same capabilities.
 
-- **Shared design tokens** (`NuvoraTokens.kt`) for consistent spacing, corner radii and component sizes across all screens and theme palettes.
-- **Redesigned Up Next queue sheet** with an animated now-playing equalizer over the current track's artwork, a physical "lift" effect while dragging rows to reorder, an icon-led empty state, and a track-count header.
-- Rounded rows, unified spacing and theme-aware colours throughout the queue, with all playback behaviour and provider callbacks preserved.
+- **Free and open source:** licensed under GNU GPL-3.0.
+- **Android-first:** minimum Android 8.0 (API 26).
+- **Modern interface:** Kotlin, Jetpack Compose, Material 3, dark navy / cyan styling, and multiple theme palettes.
+- **Music controls:** queue management, a persistent mini-player, favourites, local playlists, sleep timer and equalizer.
+- **Honest source support:** a search result does not guarantee that a provider will return a playable audio stream.
 
-## About Nuvora
+## Features
 
-Nuvora brings music discovery from several online services into one Android interface. The app has a shared search experience, source selector, player and queue, plus on-device favourites and playlists. What can actually play depends on the provider: some sources expose playable public streams, while others only support opening their official service.
-
-> **Current branding:** Nuvora is the repository and app name. The launcher icon uses the N mark, cyan-to-blue colour, and subtle audio-wave details. Product screenshots will be added here after real device screenshots are supplied and checked.
-
-## Features in the app
-
-| Area | Current functionality |
+| Area | Available functionality |
 | --- | --- |
-| **Home & discovery** | Music discovery sections, Audius trending results, pull-to-refresh, paginated loading where supported, and loading placeholders |
-| **Search** | Source selector and Songs / Playlists search flows for supported providers; accepts shared or pasted YouTube / YouTube Music links |
-| **Playback** | Media3 / ExoPlayer playback for playable results, progress/seek controls, previous/next, shuffle, repeat and playback speed where available |
-| **Mini-player & Now Playing** | Persistent mini-player and a dedicated full player screen |
-| **Background audio** | MediaSession service for supported Audius playback, with notification, lock-screen and compatible Bluetooth/system media controls |
-| **Queue** | Up Next sheet with animated now-playing indicator, tap-to-play, drag-to-reorder with lift feedback, swipe to remove, clear upcoming tracks, Play next and Add to queue |
-| **Library** | Favourites, recently played history, play counts and local playlists stored on the device |
-| **Playlist discovery** | Best-effort import/browsing of public YouTube Music and JioSaavn playlists; support depends on source response and playlist accessibility |
-| **Sound settings** | Sleep timer with presets/custom duration, equalizer presets, custom five-band levels and saved custom presets |
-| **Themes** | 16 colour palettes including Neon Blue, AMOLED Black, Purple Night, Forest, Aurora, Pearl Light, Graphite Silver, Ocean Teal and Material You Dynamic colour on Android 12+ |
-| **Downloads** | Download action is available only where the provider response supplies a usable downloadable URL. Availability and permitted use depend on the source; artwork is stored separately when supported |
+| **Search & discovery** | Source selector, song and playlist search flows, Audius trending discovery, and support for pasted/shared YouTube or YouTube Music links |
+| **Playback** | Media3 / ExoPlayer controls for compatible streams, progress seeking, previous/next, shuffle, repeat and playback speed where available |
+| **Mini-player & player screen** | Persistent mini-player and a dedicated Now Playing screen |
+| **Background audio** | MediaSession notification, lock-screen and compatible system/Bluetooth controls for supported playback flows |
+| **Queue** | Play next, add to queue, reorder, remove tracks, clear upcoming tracks and tap a queued track to play it |
+| **Personal library** | Favourites, recently played history, play counts and local playlists stored on the device |
+| **Playlists** | Best-effort browsing/import of accessible public YouTube Music and JioSaavn playlists |
+| **Sound settings** | Sleep timer, equalizer presets, custom five-band levels and saved custom presets |
+| **Themes** | Multiple colour palettes, including Neon Blue, AMOLED Black, Purple Night, Forest, Aurora, Pearl Light and Material You Dynamic colour on Android 12+ |
+| **Downloads** | A download option appears only when the provider response supplies a usable downloadable URL; it is not available for every track |
 
-## Music sources: what works and how
+## Music source compatibility
 
-Nuvora uses provider-specific adapters for catalogue results. A result is mapped into the app's common track/playlist model, then the app hands a playable URL to the player when the provider flow supplies one. The app does **not** have a universal stream URL for every service.
+Provider support can change independently of Nuvora. Please read these notes before installing:
 
-| Source | Search / discovery | In-app playback | How it is integrated |
+| Source | Search / discovery | Nuvora in-app playback | Notes |
 | --- | --- | --- | --- |
-| **Audius** | Supported | Supported for available public tracks | Uses the public Audius API for search/trending metadata and its stream endpoint. Media3's playback service supports background playback and system media controls. |
-| **YouTube Music** | Best-effort | Best-effort; may fail when upstream changes | Uses NewPipe Extractor rather than an official YouTube Music playback API. This is an unofficial integration and can break. It must not be treated as an official or guaranteed integration. |
-| **JioSaavn** | Best-effort | Best-effort when a usable stream URL is returned | Uses a community-maintained, unofficial endpoint. It is not an official JioSaavn API integration; endpoint shape, access and availability can change. |
-| **Spotify** | Opens the official service | Not provided by Nuvora | The app does not extract Spotify audio. |
-| **SoundCloud** | Opens the official service | Not provided by Nuvora | No approved in-app streaming integration is configured. |
-| **Bandcamp** | Opens the official service | Not provided by Nuvora | Playback remains with the service. |
+| **Audius** | Supported | Supported for available public tracks | Uses public Audius endpoints for metadata and streams. |
+| **YouTube Music** | Best-effort | Best-effort; can fail | Uses NewPipe Extractor, not an official YouTube Music playback API. This integration is unofficial and may break when upstream services change. |
+| **JioSaavn** | Best-effort | Best-effort when a usable stream URL is returned | Uses a community-maintained, unofficial endpoint; availability and response format can change. |
+| **Spotify** | External service hand-off | Not provided by Nuvora | Nuvora does not extract Spotify audio. |
+| **SoundCloud / Bandcamp** | External service hand-off | Not provided by Nuvora | Playback remains with the respective service. |
 
-### Important playback notes
+**Important:** Search results can contain metadata without a playable stream. Playback can also be affected by a provider's network, region, account, age, rate-limit or service changes. Nuvora does not claim to bypass DRM, account requirements, age restrictions or regional restrictions. Respect each service's terms and artists' rights.
 
-- Search results do not guarantee a playable track. A provider can return metadata without a stream URL, or a stream can fail because of network, region, account, age, rate-limit or provider-side changes.
-- Background playback and system controls are strongest for the Audius MediaSession service. Do not assume every source has identical background/queue behaviour.
-- YouTube Music and JioSaavn support is unofficial and best-effort. Nuvora is not affiliated with those services and does not promise uninterrupted access.
-- Nuvora does not claim to bypass DRM, account requirements, age gates or regional restrictions. Respect each provider's terms and artists' rights.
+Nuvora is an independent project and is not affiliated with or endorsed by YouTube, Google, Audius, JioSaavn, Spotify, SoundCloud or Bandcamp. Trademarks belong to their respective owners.
 
-## Library and privacy
+## Download and install
 
-- Favourites, recent history, play counts, and local playlists are stored on the device.
-- An account is not required by Nuvora itself.
-- Network access is used to contact the selected music services and load track metadata/artwork/streams.
-- Third-party providers have their own privacy policies and may process requests according to their terms.
+1. Open the [latest Nuvora release](https://github.com/Aasimabdul/Nuvora/releases/latest).
+2. Download **Nuvora_Music.apk** from the release assets.
+3. Open the downloaded APK on your Android device. If Android prompts you, allow your browser or file manager to install apps from that source.
+4. Open Nuvora, choose a supported source, and search for music.
 
-## Install
+**Minimum version:** Android 8.0 (API 26) or newer.  
+**Cost:** Free to download. Nuvora does not require a Nuvora account. Third-party services may have their own accounts, requirements or terms.
 
-1. Open the [GitHub Releases page](https://github.com/Aasimabdul/Nuvora/releases).
-2. Download the APK asset attached to the release.
-3. Open it on Android. If prompted, allow installation from the browser or file manager you used.
-4. Launch Nuvora and choose a source to search.
-
-**Minimum Android version:** Android 8.0 (API 26) or newer.
-
-Release APKs are built by GitHub Actions from this repository. The CI workflow currently produces a debug APK for testing. Always download builds from this repository's Releases page.
+The latest public GitHub release and the newest code on the default branch are not always the same version. Check the release notes and release assets before installing; a successful source-code change is not proof of a tested public release.
 
 ## Build from source
 
@@ -95,45 +79,41 @@ gradle --no-daemon assembleDebug
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-GitHub Actions builds on pushes to `main` and on version tags beginning with `v` or `V`. A release asset is published only when the workflow's release conditions are met and the build succeeds.
+GitHub Actions may build test APKs from repository changes and publish release assets when the relevant workflow conditions are met. For normal installation, use the APK attached to a published GitHub Release.
 
 ## Technical overview
 
-- **Language / UI:** Kotlin, Jetpack Compose, Material 3
-- **Design system:** Shared `NuvoraTokens` design tokens for spacing, radii and component sizes; glassmorphism-inspired surfaces with theme-aware colours
+- **Language and UI:** Kotlin, Jetpack Compose, Material 3
 - **Playback:** AndroidX Media3 / ExoPlayer and MediaSession
-- **Networking / provider adapters:** provider-specific repository classes for Audius, YouTube Music and JioSaavn
+- **Provider adapters:** Audius, YouTube Music and JioSaavn source adapters
 - **Artwork:** Coil Compose
-- **App ID:** `com.simbuild.nuvora`
+- **Application ID:** `com.simbuild.nuvora`
 - **Minimum SDK:** 26
-- **Current version in Gradle:** `1.1.0` (versionCode `25`)
+- **License:** GNU GPL v3.0
 
-The app uses a shared `MusicTrack` model for provider results, while provider adapters keep each service's response parsing separate. This makes the UI more consistent, but provider capabilities and playback rules still differ.
+Nuvora uses a shared `MusicTrack` model for provider results, while provider adapters keep each service's response parsing separate. The interface is consistent across sources, but the playback rules and availability are not identical.
+
+## Privacy
+
+- Favourites, recent history, play counts and personal playlists are stored on the device.
+- Nuvora itself does not require an account.
+- Network access is used to query music services and load the metadata, artwork and streams those services make available.
+- Third-party services apply their own privacy policies and terms.
 
 ## Known limitations
 
-- YouTube Music and JioSaavn use unofficial integrations and can stop working when their upstream services change.
-- Spotify, SoundCloud and Bandcamp are external-service handoffs, not in-app audio streaming sources.
-- Playlist import depends on a public, accessible playlist and the provider endpoint returning the expected data.
-- Downloads are not available for every source or every track.
-- Real-device playback, UI and release APK checks should be completed for each release; a successful source commit alone is not proof of a successful build.
+- YouTube Music and JioSaavn use unofficial, best-effort integrations and may stop working when upstream services change.
+- Spotify, SoundCloud and Bandcamp are external-service hand-offs, not in-app audio streaming sources.
+- Playlist browsing depends on public accessibility and provider response formats.
+- Downloads are only offered where a compatible downloadable URL is returned.
+- Device-level playback, performance and background behaviour can vary by Android version and provider.
 
-## Contributing and bug reports
+## Bug reports and contributions
 
-Found a bug? [Open an issue](https://github.com/Aasimabdul/Nuvora/issues). Include:
-- Nuvora version and installation source
-- Android version and device model
-- Source selected and track/playlist name
-- What you expected, what happened, and any visible error message
+Found a problem? [Open a GitHub issue](https://github.com/Aasimabdul/Nuvora/issues). Please include the Nuvora version, Android version, device model, selected source, track/playlist name, expected behaviour and what actually happened. Do not attach passwords, private account credentials or tokens.
 
-Please do not attach private account credentials or tokens.
+See [CHANGELOG.md](CHANGELOG.md) for version history and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party notices.
 
-## Changelog
+## License
 
-See [CHANGELOG.md](CHANGELOG.md).
-
-## Licence and third-party notices
-
-Nuvora is licensed under the **GNU General Public License v3.0**; see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-Nuvora is an independent project and is not affiliated with or endorsed by YouTube, Google, Audius, JioSaavn, Spotify, SoundCloud or Bandcamp. All trademarks belong to their respective owners.
+Nuvora is licensed under the **GNU General Public License v3.0**. See [LICENSE](LICENSE) for the full license text.
