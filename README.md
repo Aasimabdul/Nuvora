@@ -1,14 +1,14 @@
 <div align="center">
 
-# Nuvora — Free, Open-Source Android Music Player
+# Nuvora — Free, Open-Source Online Music Player
 
-**Discover music. Keep your listening flow simple.** Nuvora is a free, open-source Android music discovery and player app built with Kotlin and Jetpack Compose. Search supported online music sources, play tracks when a compatible stream is available, manage your queue and personal library, and use a modern dark navy / cyan-blue interface.
+**Discover music. Keep your listening flow simple.** Nuvora is a free, open-source online music player project. The Android app is built with Kotlin and Jetpack Compose; a separate Nuvora Desktop app is built with Tauri, React and TypeScript for Windows and Linux. Search supported online music sources, play tracks when a compatible stream is available, manage your queue and personal library, and use a modern dark navy / cyan-blue interface.
 
 [![Latest release](https://img.shields.io/github/v/release/Aasimabdul/Nuvora?label=latest%20release&color=42bff5)](https://github.com/Aasimabdul/Nuvora/releases/latest)
-![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84)
+![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84) ![Windows](https://img.shields.io/badge/Windows-desktop-blue) ![Linux](https://img.shields.io/badge/Linux-AppImage%20%7C%20DEB-orange)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
-[**Download Android APK**](https://github.com/Aasimabdul/Nuvora/releases/latest/download/Nuvora_Music.apk) · [Official website](https://aasimabdul.github.io/Nuvora/) · [All releases](https://github.com/Aasimabdul/Nuvora/releases) · [Report a bug](https://github.com/Aasimabdul/Nuvora/issues)
+[**Download Android APK**](https://github.com/Aasimabdul/Nuvora/releases/download/v1.0.0/Nuvora_Music.apk) · [Windows / Linux desktop releases](https://github.com/Aasimabdul/Nuvora/releases) · [Official website](https://aasimabdul.github.io/Nuvora/) · [All releases](https://github.com/Aasimabdul/Nuvora/releases) · [Report a bug](https://github.com/Aasimabdul/Nuvora/issues)
 
 </div>
 
@@ -16,7 +16,7 @@
 
 ## What is Nuvora?
 
-Nuvora is an independent Android music player project focused on **online music discovery, supported in-app playback, and a personal listening library**. It brings selected music sources into one interface without pretending that every provider offers the same capabilities.
+Nuvora is an independent **free, open-source online music player** project focused on online music discovery, supported playback, and a personal listening library. It includes an Android app and a separate desktop app for Windows and Linux. It brings selected music sources into one interface without pretending that every provider offers the same capabilities.
 
 - **Free and open source:** licensed under GNU GPL-3.0.
 - **Android-first:** minimum Android 8.0 (API 26).
@@ -66,6 +66,17 @@ Nuvora is an independent project and is not affiliated with or endorsed by YouTu
 **Cost:** Free to download. Nuvora does not require a Nuvora account. Third-party services may have their own accounts, requirements or terms.
 
 The latest public GitHub release and the newest code on the default branch are not always the same version. Check the release notes and release assets before installing; a successful source-code change is not proof of a tested public release.
+
+## Windows and Linux desktop app
+
+Nuvora Desktop is a separate desktop client built with Tauri 2, React and TypeScript. It currently focuses on Audius music discovery and playback of available public streams; it does not claim native Spotify, YouTube Music or JioSaavn stream extraction.
+
+- **Windows:** NSIS installer (.exe)
+- **Linux:** AppImage and Debian package (.deb)
+- **Download:** [Open Nuvora Releases](https://github.com/Aasimabdul/Nuvora/releases) and choose the matching desktop package from the release assets.
+- **Source:** [desktop/](desktop/) · [Desktop build instructions](desktop/README.md)
+
+Desktop packages are published by GitHub Actions only when Windows and Linux build jobs both succeed. If a release does not yet show desktop assets, check the [desktop build workflow](https://github.com/Aasimabdul/Nuvora/actions/workflows/desktop-build.yml) for its latest run.
 
 ## Build from source
 
