@@ -126,7 +126,7 @@ jobs:
         startsWith(github.ref, 'refs/tags/v') ||
         startsWith(github.ref, 'refs/tags/V') ||
         (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'Release Nuvora'))
+        (github.event_name == 'push' && github.ref == 'refs/heads/main')
       )
     needs: [windows, linux]
     runs-on: ubuntu-latest
