@@ -1,8 +1,8 @@
 <div align="center">
 
-# Nuvora — Free, Open-Source Android Music Player
+# Nuvora — Free, Open-Source Online Music Player
 
-**Discover music. Keep your listening flow simple.** Nuvora is a free, open-source Android music discovery and player app built with Kotlin and Jetpack Compose. Search supported online music sources, play tracks when a compatible stream is available, manage your queue and personal library, and use a modern dark navy / cyan-blue interface.
+**Discover music. Keep your listening flow simple.** Nuvora is a free, open-source online music player and music discovery app for Android, built with Kotlin and Jetpack Compose. Search supported online music sources, play tracks when a compatible stream is available, manage your queue and personal library, and use a modern dark navy / cyan-blue interface.
 
 [![Latest release](https://img.shields.io/github/v/release/Aasimabdul/Nuvora?label=latest%20release&color=42bff5)](https://github.com/Aasimabdul/Nuvora/releases/latest)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84)
