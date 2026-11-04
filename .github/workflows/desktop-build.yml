@@ -157,15 +157,15 @@ jobs:
           fi
 
           test -n "$TAG_NAME"
-          mapfile -t installers < <(find release-assets -maxdepth 2 -type f -name '*.exe' -size +1M)
-          mapfile -t appimages < <(find release-assets -maxdepth 2 -type f -name '*.AppImage' -size +1M)
-          mapfile -t debs < <(find release-assets -maxdepth 2 -type f -name '*.deb' -size +1M)
+          mapfile -t installers < <(find release-assets -type f -name '*.exe' -size +1M)
+          mapfile -t appimages < <(find release-assets -type f -name '*.AppImage' -size +1M)
+          mapfile -t debs < <(find release-assets -type f -name '*.deb' -size +1M)
           test "${#installers[@]}" -ge 1
           test "${#appimages[@]}" -ge 1
           test "${#debs[@]}" -ge 1
 
-          chmod +x release-assets/*.AppImage
-          (cd release-assets && find . -maxdepth 2 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+          chmod +x "${appimages[@]}"
+          sha256sum "${installers[@]}" "${appimages[@]}" "${debs[@]}" > release-assets/SHA256SUMS.txt
           if ! gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1; then
             echo "Creating versioned release $TAG_NAME. The Android workflow will attach the APK when the tag is pushed."
             gh release create "$TAG_NAME" --repo "$REPOSITORY" --target "$GITHUB_SHA" \
@@ -173,5 +173,5 @@ jobs:
               --notes "Nuvora Desktop for Windows and Linux. Includes a Windows installer, Linux AppImage, Debian package, and SHA-256 checksums. Android APK is published by the Android release workflow."
           fi
 
-          gh release upload "$TAG_NAME" release-assets/* --repo "$REPOSITORY" --clobber
+          gh release upload "$TAG_NAME" "${installers[@]}" "${appimages[@]}" "${debs[@]}" release-assets/SHA256SUMS.txt --repo "$REPOSITORY" --clobber
           gh release view "$TAG_NAME" --repo "$REPOSITORY"
